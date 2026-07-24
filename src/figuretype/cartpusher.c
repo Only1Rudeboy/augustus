@@ -84,14 +84,17 @@ static int should_change_destination(const figure *f, unsigned int building_id, 
         return 1;
     }
     building *current_destination = building_get(f->destination_building_id);
-    // Same building
+    // Same building + same tile: no change
     if (f->destination_building_id == building_id && f->destination_x == x_dst && f->destination_y == y_dst &&
         current_destination->type == building_get(building_id)->type) {
         return 0;
     }
+    // Current destination is no longer usable for delivery — always switch
     switch (f->action_state) {
         case FIGURE_ACTION_21_CARTPUSHER_DELIVERING_TO_WAREHOUSE:
         case FIGURE_ACTION_22_CARTPUSHER_DELIVERING_TO_GRANARY:
+        case FIGURE_ACTION_24_CARTPUSHER_AT_WAREHOUSE:
+        case FIGURE_ACTION_25_CARTPUSHER_AT_GRANARY:
             if (!building_storage_accepts_storage(current_destination, f->resource_id, 0)) {
                 return 1;
             }
@@ -121,7 +124,9 @@ static int should_change_destination(const figure *f, unsigned int building_id, 
             }
             break;
         default:
-            return 0;
+            // Different target for non-specialized states (workshop, monument, INITIAL, …)
+            // must always update — otherwise set_destination keeps a dead warehouse dest.
+            return 1;
     }
     int distance_current = calc_maximum_distance(current_destination->x, current_destination->y, f->x, f->y);
     int distance_new = calc_maximum_distance(x_dst, y_dst, f->x, f->y);
@@ -467,13 +472,14 @@ void figure_cartpusher_action(figure *f)
                     city_health_dispatch_sickness(f);
                     cartpusher_return_to_source(f);
                 } else {
-                    if (should_change_destination(f, f->destination_building_id, f->destination_x, f->destination_y)) {
-                        determine_cartpusher_destination(f, b, road_network_id);
-                        break;
-                    }
+                    // Destination rejected goods (orders/full). Clear dest and re-find (#951).
                     figure_route_remove(f);
+                    f->destination_building_id = 0;
+                    f->destination_x = 0;
+                    f->destination_y = 0;
                     f->action_state = FIGURE_ACTION_20_CARTPUSHER_INITIAL;
                     f->wait_ticks = 0;
+                    determine_cartpusher_destination(f, b, road_network_id);
                 }
             }
             f->image_offset = 0;
@@ -492,11 +498,13 @@ void figure_cartpusher_action(figure *f)
                         cartpusher_return_to_source(f);
                         break;
                     }
-                    if (should_change_destination(f, f->destination_building_id, f->destination_x, f->destination_y)) {
-                        determine_cartpusher_destination(f, b, road_network_id);
-                        break;
-                    }
+                    // Destination rejected goods. Clear dest and re-find food sink (#951).
+                    figure_route_remove(f);
+                    f->destination_building_id = 0;
+                    f->destination_x = 0;
+                    f->destination_y = 0;
                     f->action_state = FIGURE_ACTION_20_CARTPUSHER_INITIAL;
+                    f->wait_ticks = 0;
                     determine_cartpusher_destination_food(f, road_network_id);
                 }
             }

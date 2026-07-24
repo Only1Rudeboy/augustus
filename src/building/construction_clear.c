@@ -160,7 +160,8 @@ static unsigned int clear_land_confirmed(int x_start, int y_start, int x_end, in
                     }
                 }
                 if (b->house_size && b->house_population) {
-                    figure *homeless = figure_create_homeless(b, b->house_population);
+                    /* Undo-aware path: ages are tracked for exact restore (#953). */
+                    figure *homeless = figure_create_homeless_for_undo(b, b->house_population);
                     b->house_population = 0;
                     b->figure_id = homeless->id;
                 }

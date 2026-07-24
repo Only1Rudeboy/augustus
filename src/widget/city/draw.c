@@ -28,7 +28,9 @@
 #include "figure/roamer_preview.h"
 #include "game/resource.h"
 #include "game/state.h"
+#include "figure/figure.h"
 #include "graphics/clouds.h"
+#include "graphics/color.h"
 #include "graphics/graphics.h"
 #include "graphics/image.h"
 #include "graphics/renderer.h"
@@ -743,6 +745,18 @@ static void draw_top(int x, int y, int grid_offset)
     }
 }
 
+static void draw_walker_debug_destination(const figure *f, int x, int y)
+{
+    if (!config_get(CONFIG_UI_WALKER_DEBUG) || !f || !f->id) {
+        return;
+    }
+    if (!f->destination_x && !f->destination_y && !f->destination_building_id) {
+        return;
+    }
+    /* Mark the tile under a selected walker in debug mode (destination is shown in the panel). */
+    graphics_draw_rect(x - 2, y - 2, 36, 20, COLOR_FONT_RED);
+}
+
 static void draw_figures(int x, int y, int grid_offset)
 {
     unsigned int figure_id = map_figure_at(grid_offset);
@@ -751,6 +765,7 @@ static void draw_figures(int x, int y, int grid_offset)
         if (figure_id == draw_context.selected_figure_id) {
             if (!f->is_ghost || f->height_adjusted_ticks) {
                 city_draw_selected_figure(f, x, y, draw_context.scale, draw_context.selected_figure_coord);
+                draw_walker_debug_destination(f, x, y);
             }
         } else if (!f->is_ghost && (!draw_context.overlay->show_figure || draw_context.overlay->show_figure(f))) {
             int highlight = f->formation_id > 0 && f->formation_id == draw_context.highlighted_formation;

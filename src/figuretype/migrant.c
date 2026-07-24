@@ -56,6 +56,18 @@ figure *figure_create_homeless(building *house, int num_people)
     return f;
 }
 
+figure *figure_create_homeless_for_undo(building *house, int num_people)
+{
+    figure *f = figure_create(FIGURE_HOMELESS, house->x, house->y, DIR_0_TOP);
+    f->building_id = house->id;
+    f->action_state = FIGURE_ACTION_7_HOMELESS_CREATED;
+    f->wait_ticks = 0;
+    f->migrant_num_people = num_people;
+    /* Track ages so undoing house deletion restores the same workforce (#953). */
+    city_population_remove_homeless_tracked(num_people);
+    return f;
+}
+
 static void update_direction_and_image(figure *f)
 {
     figure_image_update(f, image_group(GROUP_FIGURE_MIGRANT));

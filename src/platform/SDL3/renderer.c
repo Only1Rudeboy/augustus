@@ -1351,6 +1351,18 @@ void platform_renderer_render(void)
     SDL_SetRenderTarget(data.renderer, data.render_texture);
 }
 
+void platform_renderer_window_to_logical(int window_x, int window_y, float *logical_x, float *logical_y)
+{
+    if (!logical_x || !logical_y) {
+        return;
+    }
+    *logical_x = (float) window_x;
+    *logical_y = (float) window_y;
+    if (data.renderer) {
+        SDL_RenderCoordinatesFromWindow(data.renderer, (float) window_x, (float) window_y, logical_x, logical_y);
+    }
+}
+
 void platform_renderer_generate_mouse_cursor_texture(int cursor_id, int size, const color_t *pixels,
     int hotspot_x, int hotspot_y)
 {

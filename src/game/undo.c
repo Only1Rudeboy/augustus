@@ -13,6 +13,7 @@
 #include "building/storage.h"
 #include "city/buildings.h"
 #include "city/finance.h"
+#include "city/population.h"
 #include "core/calc.h"
 #include "core/image.h"
 #include "figure/roamer_preview.h"
@@ -59,6 +60,7 @@ int game_can_undo(void)
 void game_undo_disable(void)
 {
     data.available = 0;
+    city_population_clear_tracked_homeless();
 }
 
 void game_undo_add_building(building *b)
@@ -156,6 +158,7 @@ int game_undo_start_build(building_type type)
     data.building_cost = 0;
     data.type = type;
     clear_buildings();
+    city_population_clear_tracked_homeless();
     for (int i = 1; i < building_count(); i++) {
         building *b = building_get(i);
         if (b->state == BUILDING_STATE_UNDO) {
@@ -253,6 +256,7 @@ void game_undo_perform(void)
     data.available = 0;
     city_finance_process_construction(-data.building_cost);
     if (data.type == BUILDING_CLEAR_LAND) {
+        int restored_house_population = 0;
         for (int i = 0; i < data.num_buildings; i++) {
             if (data.buildings[i].id) {
                 if (building_properties_for_type(data.buildings[i].type)->shared) {
@@ -281,9 +285,16 @@ void game_undo_perform(void)
                 }
                 if (building_is_house(b->type)) {
                     building_house_restore_population_after_undo(b);
+                    restored_house_population = 1;
                 }
                 add_building_to_terrain(b);
             }
+        }
+        /* Restore exact ages removed when houses were cleared — prevents worker re-roll exploit (#953). */
+        if (restored_house_population) {
+            city_population_restore_tracked_homeless();
+        } else {
+            city_population_clear_tracked_homeless();
         }
         map_terrain_restore();
         map_aqueduct_restore();
@@ -348,6 +359,7 @@ void game_undo_reduce_time_available(void)
     }
     if (data.timeout_ticks <= 0 || scenario_earthquake_is_in_progress()) {
         data.available = 0;
+        city_population_clear_tracked_homeless();
         clear_buildings();
         window_invalidate();
         return;

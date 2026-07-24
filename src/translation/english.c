@@ -2109,6 +2109,8 @@ static translation_string all_strings[] = {
     {TR_CONFIG_HEADER_DESIRABILITY, "Desirability"},
     {TR_CONFIG_SHOW_SHORELINE_DESIRABILITY, "Show shoreline desirability in overlay"},
     {TR_CONFIG_SHOW_ELEVATION_DESIRABILITY, "Show elevation desirability in overlay"},
+    {TR_CONFIG_DISPLAY_PROFILER, "Show frame profiler (sim/draw ms)"},
+    {TR_CONFIG_WALKER_DEBUG, "Show walker debug info (destination, path, wait)"},
     {TR_BUILDING_TRIUMPHAL_ARCH_PHASE_1, "(Supports)"},
     {TR_BUILDING_TRIUMPHAL_ARCH_PHASE_2, "(Facade)"},
     {TR_BUILDING_TRIUMPHAL_ARCH_PHASE_1_TEXT, "Masons are laying the stonework and erecting towering pillars for a colossal arch that will immortalize the valor of your armies and proclaim their triumphant deeds to generations across the ages."},

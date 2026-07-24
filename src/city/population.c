@@ -7,6 +7,8 @@
 #include "core/config.h"
 #include "core/random.h"
 
+#include <string.h>
+
 static const int BIRTHS_PER_AGE_DECENNIUM[10] = {
     0, 3, 16, 9, 2, 0, 0, 0, 0, 0
 };
@@ -98,7 +100,12 @@ static void add_to_census(int num_people)
     }
 }
 
-static void remove_from_census(int num_people)
+static struct {
+    int ages[100];
+    int count;
+} tracked_homeless;
+
+static void remove_from_census_tracked(int num_people, int track)
 {
     int index = 0;
     int empty_buckets = 0;
@@ -109,6 +116,10 @@ static void remove_from_census(int num_people)
             empty_buckets++;
         } else {
             city_data.population.at_age[age]--;
+            if (track) {
+                tracked_homeless.ages[age]++;
+                tracked_homeless.count++;
+            }
             num_people--;
             empty_buckets = 0;
         }
@@ -121,6 +132,10 @@ static void remove_from_census(int num_people)
             empty_buckets++;
         } else {
             city_data.population.at_age[age]--;
+            if (track) {
+                tracked_homeless.ages[age]++;
+                tracked_homeless.count++;
+            }
             num_people--;
             empty_buckets = 0;
         }
@@ -129,6 +144,11 @@ static void remove_from_census(int num_people)
             age = 0;
         }
     }
+}
+
+static void remove_from_census(int num_people)
+{
+    remove_from_census_tracked(num_people, 0);
 }
 
 static void remove_from_census_in_age_decennium(int decennium, int num_people)
@@ -199,6 +219,38 @@ void city_population_remove_homeless(int num_people)
     city_data.population.lost_homeless += num_people;
     remove_from_census(num_people);
     recalculate_population();
+}
+
+void city_population_remove_homeless_tracked(int num_people)
+{
+    city_data.population.lost_homeless += num_people;
+    remove_from_census_tracked(num_people, 1);
+    recalculate_population();
+}
+
+void city_population_restore_tracked_homeless(void)
+{
+    if (tracked_homeless.count <= 0) {
+        return;
+    }
+    city_data.population.lost_homeless -= tracked_homeless.count;
+    for (int age = 0; age < 100; age++) {
+        city_data.population.at_age[age] += tracked_homeless.ages[age];
+        tracked_homeless.ages[age] = 0;
+    }
+    tracked_homeless.count = 0;
+    recalculate_population();
+}
+
+void city_population_clear_tracked_homeless(void)
+{
+    memset(tracked_homeless.ages, 0, sizeof(tracked_homeless.ages));
+    tracked_homeless.count = 0;
+}
+
+int city_population_tracked_homeless_count(void)
+{
+    return tracked_homeless.count;
 }
 
 void city_population_remove_home_removed(int num_people)

@@ -10,6 +10,7 @@
 #include "city/trade_policy.h"
 #include "city/view.h"
 #include "core/config.h"
+#include "core/string.h"
 #include "empire/city.h"
 #include "figure/figure.h"
 #include "figure/formation.h"
@@ -18,6 +19,7 @@
 #include "figuretype/depot.h"
 #include "figuretype/trader.h"
 #include "graphics/button.h"
+#include "graphics/color.h"
 #include "graphics/generic_button.h"
 #include "graphics/graphics.h"
 #include "graphics/image.h"
@@ -26,6 +28,8 @@
 #include "graphics/rich_text.h"
 #include "graphics/text.h"
 #include "graphics/window.h"
+
+#include <stdio.h>
 #include "scenario/property.h"
 #include "translation/translation.h"
 #include "widget/city/city.h"
@@ -718,6 +722,35 @@ static void draw_normal_figure(building_info_context *c, figure *f)
     }
 }
 
+static void draw_walker_debug(building_info_context *c, figure *f)
+{
+    if (!config_get(CONFIG_UI_WALKER_DEBUG) || !f || !f->id) {
+        return;
+    }
+
+    int x = c->x_offset + 40;
+    int y = c->y_offset + 250;
+    uint8_t line[96];
+
+    snprintf((char *) line, sizeof(line), "id:%u type:%u act:%u wait:%d",
+        f->id, f->type, f->action_state, f->wait_ticks);
+    text_draw(line, x, y, FONT_SMALL_PLAIN, COLOR_FONT_RED);
+
+    snprintf((char *) line, sizeof(line), "pos:%d,%d dest:%d,%d bld:%u->%u",
+        f->x, f->y, f->destination_x, f->destination_y,
+        f->building_id, f->destination_building_id);
+    text_draw(line, x, y + 12, FONT_SMALL_PLAIN, COLOR_FONT_RED);
+
+    int path_left = 0;
+    if (f->routing_path_length > f->routing_path_current_tile) {
+        path_left = (int) (f->routing_path_length - f->routing_path_current_tile);
+    }
+    snprintf((char *) line, sizeof(line), "path:%u/%u left:%d road:%u res:%u loads:%u",
+        f->routing_path_current_tile, f->routing_path_length, path_left,
+        f->is_on_road, f->resource_id, f->loads_sold_or_carrying);
+    text_draw(line, x, y + 24, FONT_SMALL_PLAIN, COLOR_FONT_RED);
+}
+
 static void draw_figure_info(building_info_context *c, int figure_id)
 {
 
@@ -745,6 +778,7 @@ static void draw_figure_info(building_info_context *c, int figure_id)
     } else {
         draw_normal_figure(c, f);
     }
+    draw_walker_debug(c, f);
 }
 
 void window_building_draw_figure_list(building_info_context *c)

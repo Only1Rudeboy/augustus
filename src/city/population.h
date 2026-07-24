@@ -36,6 +36,24 @@ void city_population_remove(int num_people);
 
 void city_population_remove_homeless(int num_people);
 
+/**
+ * Remove homeless while recording exact ages removed (for undo restore).
+ * Must be paired with city_population_restore_tracked_homeless() on undo.
+ */
+void city_population_remove_homeless_tracked(int num_people);
+
+/**
+ * Restore ages previously removed via city_population_remove_homeless_tracked().
+ * Clears the tracked age buffer.
+ */
+void city_population_restore_tracked_homeless(void);
+
+/** Clear any pending tracked homeless ages (e.g. when undo expires). */
+void city_population_clear_tracked_homeless(void);
+
+/** Number of people currently tracked for undo restore. */
+int city_population_tracked_homeless_count(void);
+
 void city_population_remove_home_removed(int num_people);
 
 void city_population_remove_for_troop_request(int num_people);

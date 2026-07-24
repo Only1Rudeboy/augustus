@@ -208,7 +208,8 @@ void window_city_draw_custom_variables_text_display(void)
 static void draw_time_left(void)
 {
 
-    int fps_offset = config_get(CONFIG_UI_DISPLAY_FPS) * 2 * BLOCK_SIZE; // shift to the right if FPS is displayed
+    int fps_offset = (config_get(CONFIG_UI_DISPLAY_FPS) || config_get(CONFIG_UI_DISPLAY_PROFILER))
+        * 2 * BLOCK_SIZE; // shift to the right if FPS/profiler is displayed
     time_left_label_shown = fps_offset > 0; // if fps is shown skip first row anyway
     if ((scenario_criteria_time_limit_enabled() || scenario_criteria_survival_enabled()) && !city_victory_has_won()) {
         time_left_label_shown = 1;

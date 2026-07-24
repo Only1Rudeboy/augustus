@@ -10,6 +10,9 @@ void figure_create_emigrant(building *house, int num_people);
 
 figure *figure_create_homeless(building *house, int num_people);
 
+/** Like figure_create_homeless, but records ages for exact undo restore. */
+figure *figure_create_homeless_for_undo(building *house, int num_people);
+
 void figure_immigrant_action(figure *f);
 
 void figure_emigrant_action(figure *f);

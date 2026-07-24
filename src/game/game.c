@@ -17,6 +17,7 @@
 #include "game/campaign.h"
 #include "game/file.h"
 #include "game/file_editor.h"
+#include "game/profiler.h"
 #include "game/settings.h"
 #include "game/speed.h"
 #include "game/state.h"
@@ -37,6 +38,8 @@
 #include "window/editor/map.h"
 #include "window/logo.h"
 #include "window/main_menu.h"
+
+#include <stdio.h>
 
 static void errlog(const char *msg)
 {
@@ -251,6 +254,30 @@ void game_display_fps(int fps)
     graphics_draw_rect(x_offset, y_offset, width + 2, height + 2, COLOR_BLACK);
     graphics_fill_rect(x_offset + 1, y_offset + 1, width, height, COLOR_WHITE);
     text_draw_number_centered_colored(fps, x_offset, y_offset + 6, width, FONT_SMALL_PLAIN, COLOR_BLACK);
+}
+
+void game_display_profiler(int fps)
+{
+    game_display_fps(fps);
+
+    if (!config_get(CONFIG_UI_DISPLAY_PROFILER)) {
+        return;
+    }
+
+    int x_offset = 8;
+    int y_offset = 48;
+    int width = 120;
+    int height = 36;
+    graphics_draw_rect(x_offset, y_offset, width + 2, height + 2, COLOR_BLACK);
+    graphics_fill_rect(x_offset + 1, y_offset + 1, width, height, COLOR_WHITE);
+
+    uint8_t line[64];
+    snprintf((char *) line, sizeof(line), "S:%dms D:%dms",
+        game_profiler_sim_ms(), game_profiler_draw_ms());
+    text_draw(line, x_offset + 4, y_offset + 4, FONT_SMALL_PLAIN, COLOR_BLACK);
+
+    snprintf((char *) line, sizeof(line), "F:%dms", game_profiler_frame_ms());
+    text_draw(line, x_offset + 4, y_offset + 18, FONT_SMALL_PLAIN, COLOR_BLACK);
 }
 
 void game_exit(void)

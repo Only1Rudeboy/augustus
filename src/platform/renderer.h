@@ -18,6 +18,16 @@ void platform_renderer_clear(void);
 
 void platform_renderer_render(void);
 
+/**
+ * Convert window pixel coordinates to renderer logical coordinates.
+ * Required so mouse input matches the hardware cursor under display scale.
+ * @param window_x Window X in pixels
+ * @param window_y Window Y in pixels
+ * @param logical_x Output logical X
+ * @param logical_y Output logical Y
+ */
+void platform_renderer_window_to_logical(int window_x, int window_y, float *logical_x, float *logical_y);
+
 void platform_renderer_pause(void);
 
 void platform_renderer_resume(void);

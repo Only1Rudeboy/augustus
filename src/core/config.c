@@ -137,6 +137,8 @@ static const char *ini_keys[] = {
     [CONFIG_UI_EMPIRE_SIDEBAR_SORT_REVERSED] = "ui_empire_sidebar_sort_reversed",
     [CONFIG_UI_AUTO_CYCLE_TEMPLES] = "ui_auto_cycle_temples",
     [CONFIG_UI_AUTO_CYCLE_GARDENS] = "ui_auto_cycle_gardens",
+    [CONFIG_UI_DISPLAY_PROFILER] = "ui_display_profiler",
+    [CONFIG_UI_WALKER_DEBUG] = "ui_walker_debug",
 };
 
 static const char *ini_string_keys[] = {
@@ -211,7 +213,9 @@ static int default_values[CONFIG_MAX_ENTRIES] = {
     [CONFIG_UI_WT_SANDSTORM_SIZE] = 0,
     [CONFIG_UI_WT_SNOWFLAKE_SIZE] = 2,
     [CONFIG_UI_WT_WEATHER_DURATION] = 1,
-    [CONFIG_UI_CLIMATE_GRID_COLORS] = 1
+    [CONFIG_UI_CLIMATE_GRID_COLORS] = 1,
+    [CONFIG_UI_DISPLAY_PROFILER] = 0,
+    [CONFIG_UI_WALKER_DEBUG] = 0
 };
 
 static const char default_string_values[CONFIG_STRING_MAX_ENTRIES][CONFIG_STRING_VALUE_MAX] = { 0 };

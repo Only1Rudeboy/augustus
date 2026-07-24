@@ -15,6 +15,9 @@ void game_draw(void);
 
 void game_display_fps(int fps);
 
+/** Draw FPS and optional sim/draw profiler next to it. */
+void game_display_profiler(int fps);
+
 void game_exit_editor(void);
 
 void game_exit(void);

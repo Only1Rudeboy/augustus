@@ -9,6 +9,7 @@
 #include "core/log.h"
 #include "core/time.h"
 #include "game/game.h"
+#include "game/profiler.h"
 #include "game/settings.h"
 #include "game/system.h"
 #include "graphics/screen.h"
@@ -237,8 +238,11 @@ static void run_and_draw(void)
     time_millis time_before_run = system_get_ticks();
     time_set_millis(time_before_run);
 
+    game_profiler_begin_frame();
     game_run();
+    game_profiler_mark_sim_end();
     game_draw();
+    game_profiler_mark_draw_end();
     Uint32 time_after_draw = system_get_ticks();
 
     data.fps.frame_count++;
@@ -248,8 +252,8 @@ static void run_and_draw(void)
         data.fps.frame_count = 0;
     }
 
-    if (config_get(CONFIG_UI_DISPLAY_FPS)) {
-        game_display_fps(data.fps.last_fps);
+    if (config_get(CONFIG_UI_DISPLAY_FPS) || config_get(CONFIG_UI_DISPLAY_PROFILER)) {
+        game_display_profiler(data.fps.last_fps);
     }
 
     platform_renderer_render();
