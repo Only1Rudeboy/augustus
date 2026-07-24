@@ -1,5 +1,27 @@
 # Augustus ![](res/julius_48.png)
 
+> **This repository** is a fork of [Keriew/augustus](https://github.com/Keriew/augustus) with extra quality-of-life and bug fixes.  
+> Upstream Augustus is the full Caesar III remake with gameplay options. We keep that base and improve it step by step.
+
+## What’s new in this fork (Milestone A)
+
+Short version — tools for developers and three important fixes:
+
+### Dev tools
+| Feature | How to use |
+|--------|------------|
+| **Frame profiler** | Options → UI → *Show frame profiler*. Shows sim / draw / frame time in ms (next to FPS). |
+| **Walker debug** | Options → UI → *Show walker debug info*. Click a walker to see id, action, destination, path progress, wait ticks. |
+
+### Bug fixes
+- **Display scale cursor** — With scale above 100%, clicks now match where the hardware cursor is (SDL2).
+- **House delete + Undo exploit** — Undoing house deletion no longer re-rolls ages / free workers.
+- **Stuck cart pushers** — If a warehouse stops accepting goods, the cart pusher finds a new destination instead of looping forever.
+
+Details: [doc/MILESTONE_A.md](doc/MILESTONE_A.md) · Branch: `milestone-a-foundation`
+
+---
+
 [![Github Actions](https://github.com/Keriew/augustus/workflows/Build%20Augustus/badge.svg)](https://github.com/Keriew/Augustus/actions)
 
  **💬 Join the Augustus Community - players, mapmakers, and developers**  
