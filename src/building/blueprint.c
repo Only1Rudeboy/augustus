@@ -5,6 +5,7 @@
 #include "building/construction_building.h"
 #include "building/properties.h"
 #include "building/rotation.h"
+#include "building/warehouse.h"
 #include "city/finance.h"
 #include "city/warning.h"
 #include "core/calc.h"
@@ -12,6 +13,7 @@
 #include "game/undo.h"
 #include "map/building.h"
 #include "map/grid.h"
+#include "translation/translation.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -22,6 +24,41 @@ static struct {
     int width;
     int height;
 } data;
+
+/** Footprint size in tiles (warehouse is a 3x3 compound despite size=1 props). */
+static int item_footprint_size(building_type type)
+{
+    if (type == BUILDING_WAREHOUSE) {
+        return 3;
+    }
+    return building_properties_for_type(type)->size;
+}
+
+/**
+ * Number of geometric orientations for stamp rotate.
+ * Pure color/style variants (pavilions, roadblocks, etc.) return 0 — leave as-is.
+ */
+static int item_geometric_rotation_steps(building_type type)
+{
+    if (building_properties_for_type(type)->rotation_offset) {
+        return 2;
+    }
+    switch (type) {
+        case BUILDING_FORT_JAVELIN:
+        case BUILDING_FORT_LEGIONARIES:
+        case BUILDING_FORT_MOUNTED:
+        case BUILDING_FORT_AUXILIA_INFANTRY:
+        case BUILDING_FORT_ARCHERS:
+        case BUILDING_WAREHOUSE:
+            return 4;
+        case BUILDING_HIPPODROME:
+        case BUILDING_GATEHOUSE:
+        case BUILDING_TRIUMPHAL_ARCH:
+            return 2;
+        default:
+            return 0;
+    }
+}
 
 void building_blueprint_clear(void)
 {
@@ -91,28 +128,36 @@ int building_blueprint_copy_area(int x1, int y1, int x2, int y2)
             if (type == BUILDING_NONE) {
                 continue;
             }
-            if (b->x < x_min || b->y < y_min || b->x > x_max || b->y > y_max) {
+            /* Warehouse tower is not always TL of the 3x3; use compound origin. */
+            int origin_x = b->x;
+            int origin_y = b->y;
+            if (b->type == BUILDING_WAREHOUSE) {
+                int main_off = building_warehouse_get_main_grid_offset(b);
+                origin_x = map_grid_offset_to_x(main_off);
+                origin_y = map_grid_offset_to_y(main_off);
+            }
+            if (origin_x < x_min || origin_y < y_min || origin_x > x_max || origin_y > y_max) {
                 continue;
             }
             if (data.count >= BUILDING_BLUEPRINT_MAX_ITEMS) {
-                city_warning_show_custom(string_from_ascii("Blueprint full (max buildings)"), NEW_WARNING_SLOT);
+                city_warning_show_custom(translation_for(TR_CITY_WARNING_BLUEPRINT_FULL), NEW_WARNING_SLOT);
                 return data.count;
             }
             if (seen_count < BUILDING_BLUEPRINT_MAX_ITEMS) {
                 seen_ids[seen_count++] = b->id;
             }
             building_blueprint_item *item = &data.items[data.count++];
-            item->dx = b->x - x_min;
-            item->dy = b->y - y_min;
+            item->dx = origin_x - x_min;
+            item->dy = origin_y - y_min;
             item->type = type;
             item->rotation = building_clone_rotation_from_grid_offset(b->grid_offset);
         }
     }
 
     if (data.count > 0) {
-        city_warning_show_custom(string_from_ascii("Blueprint copied"), NEW_WARNING_SLOT);
+        city_warning_show_custom(translation_for(TR_CITY_WARNING_BLUEPRINT_COPIED), NEW_WARNING_SLOT);
     } else {
-        city_warning_show_custom(string_from_ascii("No buildings to copy"), NEW_WARNING_SLOT);
+        city_warning_show_custom(translation_for(TR_CITY_WARNING_BLUEPRINT_NO_BUILDINGS), NEW_WARNING_SLOT);
     }
     return data.count;
 }
@@ -142,19 +187,24 @@ int building_blueprint_rotate_clockwise(void)
     if (!data.count) {
         return 0;
     }
-    /* (dx, dy) -> (height-1-dy, dx) so origin stays top-left of bbox */
+    /* Multi-tile TL: (dx, dy) -> (H - dy - S, dx); then swap bbox W/H */
     int old_w = data.width;
     int old_h = data.height;
     for (int i = 0; i < data.count; i++) {
+        int s = item_footprint_size(data.items[i].type);
         int dx = data.items[i].dx;
         int dy = data.items[i].dy;
-        data.items[i].dx = old_h - 1 - dy;
+        data.items[i].dx = old_h - dy - s;
         data.items[i].dy = dx;
-        data.items[i].rotation = (data.items[i].rotation + 1) % 4;
+        /* Only advance geometric orientations, not pure color/style variants */
+        int steps = item_geometric_rotation_steps(data.items[i].type);
+        if (steps > 0) {
+            data.items[i].rotation = (data.items[i].rotation + 1) % steps;
+        }
     }
     data.width = old_h;
     data.height = old_w;
-    city_warning_show_custom(string_from_ascii("Blueprint rotated"), NEW_WARNING_SLOT);
+    city_warning_show_custom(translation_for(TR_CITY_WARNING_BLUEPRINT_ROTATED), NEW_WARNING_SLOT);
     return 1;
 }
 
@@ -164,16 +214,17 @@ int building_blueprint_mirror_horizontal(void)
         return 0;
     }
     for (int i = 0; i < data.count; i++) {
-        data.items[i].dx = data.width - 1 - data.items[i].dx;
+        int s = item_footprint_size(data.items[i].type);
+        data.items[i].dx = data.width - s - data.items[i].dx;
     }
-    city_warning_show_custom(string_from_ascii("Blueprint mirrored"), NEW_WARNING_SLOT);
+    city_warning_show_custom(translation_for(TR_CITY_WARNING_BLUEPRINT_MIRRORED), NEW_WARNING_SLOT);
     return 1;
 }
 
 int building_blueprint_paste_at(int x, int y)
 {
     if (!data.count) {
-        city_warning_show_custom(string_from_ascii("Blueprint empty — copy first"), NEW_WARNING_SLOT);
+        city_warning_show_custom(translation_for(TR_CITY_WARNING_BLUEPRINT_EMPTY), NEW_WARNING_SLOT);
         return 0;
     }
     if (!map_grid_is_inside(x, y, 1)) {
@@ -188,7 +239,8 @@ int building_blueprint_paste_at(int x, int y)
         const building_blueprint_item *item = &data.items[i];
         int px = x + item->dx;
         int py = y + item->dy;
-        if (!map_grid_is_inside(px, py, 1)) {
+        int size = item_footprint_size(item->type);
+        if (!map_grid_is_inside(px, py, size)) {
             continue;
         }
         int cost = model_get_building(item->type)->cost;
@@ -212,11 +264,12 @@ int building_blueprint_paste_at(int x, int y)
     if (placed) {
         game_undo_finish_build(cost_total);
         char msg[64];
-        snprintf(msg, sizeof(msg), "Pasted %d/%d (%dx%d)", placed, data.count, data.width, data.height);
+        snprintf(msg, sizeof(msg), (const char *) translation_for(TR_CITY_WARNING_BLUEPRINT_PASTED),
+            placed, data.count, data.width, data.height);
         city_warning_show_custom((const uint8_t *) msg, NEW_WARNING_SLOT);
     } else {
         game_undo_disable();
-        city_warning_show_custom(string_from_ascii("Could not paste blueprint"), NEW_WARNING_SLOT);
+        city_warning_show_custom(translation_for(TR_CITY_WARNING_BLUEPRINT_PASTE_FAILED), NEW_WARNING_SLOT);
     }
     return placed;
 }

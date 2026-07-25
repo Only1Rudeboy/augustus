@@ -446,20 +446,26 @@ void city_sentiment_update(void)
         city_data.sentiment.message_delay--;
     }
 
-    if (city_data.sentiment.value < 48 && city_data.sentiment.value < city_data.sentiment.previous_value) {
-        if (city_data.sentiment.message_delay <= 0) {
-            city_data.sentiment.message_delay = 3;
+    // Only post on threshold crossing (not every month sentiment keeps falling),
+    // and keep a longer delay so bounce around a boundary cannot spam.
+    int value = city_data.sentiment.value;
+    int prev = city_data.sentiment.previous_value;
+    if (value < 48 && city_data.sentiment.message_delay <= 0) {
+        int message_type = 0;
+        if (value < 35 && prev >= 35) {
+            message_type = MESSAGE_PEOPLE_ANGRY;
+        } else if (value < 40 && prev >= 40) {
+            message_type = MESSAGE_PEOPLE_UNHAPPY;
+        } else if (prev >= 48) {
+            message_type = MESSAGE_PEOPLE_DISGRUNTLED;
+        }
+        if (message_type) {
+            city_data.sentiment.message_delay = 12;
             int cause = city_data.sentiment.low_mood_cause;
             if (!cause) {
                 cause = -1;
             }
-            if (city_data.sentiment.value < 35) {
-                city_message_post(0, MESSAGE_PEOPLE_ANGRY, cause, 0);
-            } else if (city_data.sentiment.value < 40) {
-                city_message_post(0, MESSAGE_PEOPLE_UNHAPPY, cause, 0);
-            } else {
-                city_message_post(0, MESSAGE_PEOPLE_DISGRUNTLED, cause, 0);
-            }
+            city_message_post(0, message_type, cause, 0);
         }
     }
 

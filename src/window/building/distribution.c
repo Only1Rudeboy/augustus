@@ -19,14 +19,17 @@
 #include "city/resource.h"
 #include "city/trade_policy.h"
 #include "core/calc.h"
+#include "core/config.h"
 #include "core/lang.h"
 #include "core/string.h"
 #include "building/properties.h"
 #include "graphics/color.h"
 #include "empire/city.h"
+#include "empire/empire.h"
 #include "empire/object.h"
 #include "empire/trade_route.h"
 #include "figure/figure.h"
+#include "figure/trader.h"
 #include "graphics/button.h"
 #include "graphics/generic_button.h"
 #include "graphics/graphics.h"
@@ -501,6 +504,291 @@ static void draw_dock_permission_buttons(int x_offset, int y_offset, int dock_id
     }
 }
 
+static int dock_storage_reachable(const building *storage, const building *dock)
+{
+    return storage->state == BUILDING_STATE_IN_USE &&
+        storage->has_road_access && storage->distance_from_entry > 0 &&
+        storage->road_network_id == dock->road_network_id;
+}
+
+/* Returns 1 if a warehouse/granary can take this import. Sets *permission_blocked if only dock permission is in the way. */
+static int dock_find_import_sink(const building *dock, int city_id, int *permission_blocked)
+{
+    int blocked = 0;
+    for (int r = RESOURCE_MIN; r < RESOURCE_MAX; r++) {
+        if (!building_distribution_is_good_accepted(dock, r) ||
+            !empire_can_import_resource_from_city(city_id, r)) {
+            continue;
+        }
+        for (building *b = building_first_of_type(BUILDING_WAREHOUSE); b; b = b->next_of_type) {
+            if (!dock_storage_reachable(b, dock)) {
+                continue;
+            }
+            if (building_warehouse_maximum_receptible_amount(b, r) <= 0) {
+                continue;
+            }
+            if (!building_storage_get_permission(BUILDING_STORAGE_PERMISSION_DOCK, b)) {
+                blocked = 1;
+                continue;
+            }
+            return 1;
+        }
+        if (resource_is_food(r)) {
+            for (building *b = building_first_of_type(BUILDING_GRANARY); b; b = b->next_of_type) {
+                if (!dock_storage_reachable(b, dock)) {
+                    continue;
+                }
+                if (building_granary_maximum_receptible_amount(b, r) <= 0) {
+                    continue;
+                }
+                if (!building_storage_get_permission(BUILDING_STORAGE_PERMISSION_DOCK, b)) {
+                    blocked = 1;
+                    continue;
+                }
+                return 1;
+            }
+        }
+    }
+    if (permission_blocked) {
+        *permission_blocked = blocked;
+    }
+    return 0;
+}
+
+/* Returns 1 if storage has export goods for this ship. Sets *permission_blocked if only dock permission blocks. */
+static int dock_find_export_source(const building *dock, int city_id, int *permission_blocked)
+{
+    int blocked = 0;
+    for (int r = RESOURCE_MIN; r < RESOURCE_MAX; r++) {
+        if (!building_distribution_is_good_accepted(dock, r) ||
+            !empire_can_export_resource_to_city(city_id, r)) {
+            continue;
+        }
+        for (building *b = building_first_of_type(BUILDING_WAREHOUSE); b; b = b->next_of_type) {
+            if (!dock_storage_reachable(b, dock)) {
+                continue;
+            }
+            if (building_warehouse_get_available_amount(b, r) <= 0) {
+                continue;
+            }
+            if (!building_storage_get_permission(BUILDING_STORAGE_PERMISSION_DOCK, b)) {
+                blocked = 1;
+                continue;
+            }
+            return 1;
+        }
+        if (resource_is_food(r) && config_get(CONFIG_GP_CH_ALLOW_EXPORTING_FROM_GRANARIES)) {
+            for (building *b = building_first_of_type(BUILDING_GRANARY); b; b = b->next_of_type) {
+                if (!dock_storage_reachable(b, dock)) {
+                    continue;
+                }
+                if (building_granary_get_amount(b, r) <= 0) {
+                    continue;
+                }
+                if (!building_storage_get_permission(BUILDING_STORAGE_PERMISSION_DOCK, b)) {
+                    blocked = 1;
+                    continue;
+                }
+                return 1;
+            }
+        }
+    }
+    if (permission_blocked) {
+        *permission_blocked = blocked;
+    }
+    return 0;
+}
+
+static int dock_has_busy_docker(const building *dock, int *importing, int *exporting)
+{
+    int busy = 0;
+    if (importing) {
+        *importing = 0;
+    }
+    if (exporting) {
+        *exporting = 0;
+    }
+    for (int i = 0; i < 3; i++) {
+        if (!dock->data.distribution.cartpusher_ids[i]) {
+            continue;
+        }
+        figure *f = figure_get(dock->data.distribution.cartpusher_ids[i]);
+        if (!f || f->state != FIGURE_STATE_ALIVE) {
+            continue;
+        }
+        switch (f->action_state) {
+            case FIGURE_ACTION_133_DOCKER_IMPORT_QUEUE:
+            case FIGURE_ACTION_135_DOCKER_IMPORT_GOING_TO_STORAGE:
+            case FIGURE_ACTION_138_DOCKER_IMPORT_RETURNING:
+            case FIGURE_ACTION_139_DOCKER_IMPORT_AT_STORAGE:
+                busy = 1;
+                if (importing) {
+                    *importing = 1;
+                }
+                break;
+            case FIGURE_ACTION_134_DOCKER_EXPORT_QUEUE:
+            case FIGURE_ACTION_136_DOCKER_EXPORT_GOING_TO_STORAGE:
+            case FIGURE_ACTION_137_DOCKER_EXPORT_RETURNING:
+            case FIGURE_ACTION_140_DOCKER_EXPORT_AT_STORAGE:
+                busy = 1;
+                if (exporting) {
+                    *exporting = 1;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    return busy;
+}
+
+/**
+ * Default-on logistics transparency for docks (Milestone B style).
+ * Short status lines above the employment panel — why trade is stuck.
+ */
+static void draw_dock_trade_status(building_info_context *c, const building *b)
+{
+    if (b->has_plague) {
+        return;
+    }
+
+    char line1[128];
+    char line2[128];
+    line1[0] = 0;
+    line2[0] = 0;
+    color_t color1 = COLOR_FONT_ORANGE;
+    color_t color2 = COLOR_FONT_ORANGE;
+
+    if (!c->has_road_access) {
+        snprintf(line1, sizeof(line1), "No road access");
+        color1 = COLOR_FONT_RED;
+    } else if (c->worker_percentage <= 0) {
+        snprintf(line1, sizeof(line1), "Workers understaffed (0%%) — no dockers");
+        color1 = COLOR_FONT_RED;
+    } else {
+        figure *ship = 0;
+        int ship_id = b->data.dock.trade_ship_id;
+        if (ship_id) {
+            ship = figure_get(ship_id);
+            if (!ship || ship->state != FIGURE_STATE_ALIVE || ship->type != FIGURE_TRADE_SHIP) {
+                ship = 0;
+                ship_id = 0;
+            }
+        }
+
+        if (!ship) {
+            snprintf(line1, sizeof(line1), "No moored ship");
+            color1 = COLOR_FONT_BLUE;
+            if (c->worker_percentage < 100) {
+                snprintf(line2, sizeof(line2), "Workers %d%% — slower when a ship arrives",
+                    c->worker_percentage);
+            }
+        } else if (ship->action_state != FIGURE_ACTION_112_TRADE_SHIP_MOORED) {
+            if (ship->action_state == FIGURE_ACTION_114_TRADE_SHIP_ANCHORED) {
+                snprintf(line1, sizeof(line1), "Ship queued / waiting to dock");
+            } else if (ship->action_state == FIGURE_ACTION_115_TRADE_SHIP_LEAVING) {
+                snprintf(line1, sizeof(line1), "Ship leaving");
+            } else {
+                snprintf(line1, sizeof(line1), "Ship approaching dock");
+            }
+            color1 = COLOR_FONT_BLUE;
+        } else {
+            /* Ship is moored — diagnose trade capacity and storage. */
+            int import_full = trader_has_sold_max(ship->trader_id);
+            int export_full = trader_has_bought_max(ship->trader_id);
+            int can_import = building_dock_can_import_from_ship(b, ship_id);
+            int can_export = building_dock_can_export_to_ship(b, ship_id);
+            int busy_import = 0, busy_export = 0;
+            int busy = dock_has_busy_docker(b, &busy_import, &busy_export);
+
+            if (import_full && export_full) {
+                snprintf(line1, sizeof(line1), "Ship has no import/export capacity left");
+                color1 = COLOR_FONT_ORANGE;
+            } else if (busy) {
+                if (busy_import && busy_export) {
+                    snprintf(line1, sizeof(line1), "Dockers importing and exporting");
+                } else if (busy_import) {
+                    snprintf(line1, sizeof(line1), "Dockers delivering imports to storage");
+                } else {
+                    snprintf(line1, sizeof(line1), "Dockers fetching goods for export");
+                }
+                color1 = COLOR_FONT_BLUE;
+                if (c->worker_percentage < 75) {
+                    snprintf(line2, sizeof(line2), "Workers %d%% — understaffed", c->worker_percentage);
+                }
+            } else {
+                /* Idle dockers with a moored ship: explain the blockage. */
+                int import_perm_block = 0, export_perm_block = 0;
+                int has_import_sink = 0, has_export_source = 0;
+
+                if (can_import && !import_full) {
+                    has_import_sink = dock_find_import_sink(b, ship->empire_city_id, &import_perm_block);
+                }
+                if (can_export && !export_full) {
+                    has_export_source = dock_find_export_source(b, ship->empire_city_id, &export_perm_block);
+                }
+
+                if (!can_import && !can_export) {
+                    if (import_full && !export_full) {
+                        snprintf(line1, sizeof(line1), "Ship import quota full; dock goods blocked for export");
+                    } else if (export_full && !import_full) {
+                        snprintf(line1, sizeof(line1), "Ship export quota full; dock goods blocked for import");
+                    } else {
+                        snprintf(line1, sizeof(line1), "Dock rejects this ship's trade goods");
+                    }
+                    color1 = COLOR_FONT_ORANGE;
+                } else if (can_import && !import_full && !has_import_sink) {
+                    if (import_perm_block) {
+                        snprintf(line1, sizeof(line1), "No accepting storage — dock permission blocked");
+                    } else {
+                        snprintf(line1, sizeof(line1), "No accepting warehouse/granary for imports");
+                    }
+                    color1 = COLOR_FONT_ORANGE;
+                    if (can_export && !export_full && !has_export_source) {
+                        if (export_perm_block) {
+                            snprintf(line2, sizeof(line2), "No export goods — dock permission blocked");
+                        } else {
+                            snprintf(line2, sizeof(line2), "No storage with goods for export");
+                        }
+                    }
+                } else if (can_export && !export_full && !has_export_source) {
+                    if (export_perm_block) {
+                        snprintf(line1, sizeof(line1), "No export goods — dock permission blocked");
+                    } else {
+                        snprintf(line1, sizeof(line1), "No storage with goods for export");
+                    }
+                    color1 = COLOR_FONT_ORANGE;
+                    if (import_full) {
+                        snprintf(line2, sizeof(line2), "Ship import capacity already full");
+                    }
+                } else if (import_full && can_export && has_export_source) {
+                    snprintf(line1, sizeof(line1), "Ship import quota full — export still possible");
+                    color1 = COLOR_FONT_BLUE;
+                } else if (export_full && can_import && has_import_sink) {
+                    snprintf(line1, sizeof(line1), "Ship export quota full — import still possible");
+                    color1 = COLOR_FONT_BLUE;
+                } else {
+                    snprintf(line1, sizeof(line1), "Ship moored — waiting for dockers");
+                    color1 = COLOR_FONT_BLUE;
+                }
+
+                if (!line2[0] && c->worker_percentage < 75) {
+                    snprintf(line2, sizeof(line2), "Workers %d%% — understaffed", c->worker_percentage);
+                }
+            }
+        }
+    }
+
+    int y = c->y_offset + 108;
+    if (line1[0]) {
+        text_draw((const uint8_t *) line1, c->x_offset + 32, y, FONT_SMALL_PLAIN, color1);
+        y += 14;
+    }
+    if (line2[0]) {
+        text_draw((const uint8_t *) line2, c->x_offset + 32, y, FONT_SMALL_PLAIN, color2);
+    }
+}
+
 void window_building_draw_dock(building_info_context *c)
 {
     c->advisor_button = ADVISOR_TRADE;
@@ -543,6 +831,8 @@ void window_building_draw_dock(building_info_context *c)
                 window_building_draw_description(c, 101, 9);
             }
         }
+        /* Logistics transparency: specific reason trade is idle / blocked */
+        draw_dock_trade_status(c, b);
     }
 
     inner_panel_draw(c->x_offset + 16, c->y_offset + 136, c->width_blocks - 2, 4);
@@ -1242,11 +1532,14 @@ void window_building_draw_storage(building_info_context *c)
             int pct_workers = b->num_workers > 0 ?
                 calc_percentage(b->num_workers, model_get_building(b->type)->laborers) : 0;
             if (!c->has_road_access) {
-                snprintf(status, sizeof(status), "No road access");
+                snprintf(status, sizeof(status), "%s",
+                    (const char *) translation_for(TR_STORAGE_STATUS_NO_ROAD_ACCESS));
             } else if (building_storage_get_empty_all(b->id)) {
-                snprintf(status, sizeof(status), "Emptying all");
+                snprintf(status, sizeof(status), "%s",
+                    (const char *) translation_for(TR_STORAGE_STATUS_EMPTYING_ALL));
             } else if (pct_workers < 100) {
-                snprintf(status, sizeof(status), "Workers %d%% — may refuse deliveries", pct_workers);
+                snprintf(status, sizeof(status),
+                    (const char *) translation_for(TR_STORAGE_STATUS_WORKERS_MAY_REFUSE), pct_workers);
             }
             if (status[0]) {
                 text_draw((const uint8_t *) status, c->x_offset + 32, c->y_offset + y + 6,

@@ -22,7 +22,7 @@ Everything listed here is merged into **`master`**.
 | Show house upgrade checklist | Checklist of missing needs for next level (default **on**) |
 | **Ctrl+C** blueprint copy | Copy buildings under cursor, or active drag rectangle |
 | **Ctrl+V** blueprint paste | Paste stamp (reports N/M and size) |
-| **Ctrl+R** / **Ctrl+M** | Rotate / mirror blueprint |
+| **Ctrl+R** / **Ctrl+M** | Rotate / mirror blueprint (multi-tile safe) |
 | Overlay house heatmaps | Needs / Food / Bath / Entertainment gap |
 
 ---
@@ -35,10 +35,16 @@ Everything listed here is merged into **`master`**.
 - Green “Ready to evolve” when nothing is missing.  
 - Fixed bug: evolve message was sometimes garbage until you reopened the panel.
 
-### Storage & industry
+### Storage, industry & docks
 - Free space on warehouses uses real empty slots.  
 - Hints when understaffed or “emptying all”.  
-- Farms/workshops show cart waiting reason or target.
+- Farms/workshops show cart waiting reason or target.  
+- **Docks**: status lines for ship state, import/export capacity, storage sinks, dock permission.
+
+### Blueprint (multi-tile)
+- Warehouse copies from compound top-left (3×3), not only the tower tile.  
+- Rotate/mirror use full footprint size (warehouse, forts, gates, etc.).  
+- Geometric rotation only for types that truly orient; color variants stay put.
 
 ### Logistics reliability
 - Cart pushers re-find a destination if a warehouse stops accepting.  
@@ -48,9 +54,13 @@ Everything listed here is merged into **`master`**.
 - **Warehousemen**, **depot carts**, **suppliers**, **dockers** re-route on rejection / dead dests.  
 - Mood uses **settled** tax/wage rates (blocks collection-tick cheese).
 
-### Fairness
+### Fairness & spam
 - Undo after deleting houses restores the **same ages** (no free-worker exploit).  
-- High display scale: mouse clicks match the cursor.
+- High display scale: mouse clicks match the cursor.  
+- Low-sentiment messages only when **crossing** 48 / 40 / 35, with a longer delay.
+
+### Build over walkers (config)
+- Honored in ghost preview, wall placement, and burning-ruin rebuild checks.
 
 ---
 
@@ -69,17 +79,13 @@ Everything listed here is merged into **`master`**.
 |------|---------|
 | [MILESTONE_A.md](MILESTONE_A.md) | Profiler, walker debug, first three fixes |
 | [MILESTONE_BC.md](MILESTONE_BC.md) | House checklist, logistics UI, system fixes |
+| [PERFORMANCE.md](PERFORMANCE.md) | Profiler labels, hotspots, player tips |
+| [UPSTREAM_PR_PLAN.md](UPSTREAM_PR_PLAN.md) | Split this fork into small PRs for Keriew |
 
 ---
 
 ## Upstream PR tips
 
-Split reviews by topic if you open PRs against Keriew:
+See [UPSTREAM_PR_PLAN.md](UPSTREAM_PR_PLAN.md). One concern per PR; config-gated rules default off; English `TR_*` for new strings.
 
-1. Cart logistics fixes  
-2. House diagnose UI + evolve_text fix  
-3. Warehouse recount + storage/industry UI  
-4. Dev tools (profiler / walker debug)  
-5. Optional configs  
-
-No save-version change. English strings for new config keys.
+No save-version change.

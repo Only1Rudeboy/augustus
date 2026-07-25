@@ -18,7 +18,12 @@ All improvements below are **on `master`**. Short overview — details in [doc/F
 
 ### Logistics & panels
 - Warehouse / granary: correct free space + staffing / emptying hints  
-- Farms / industry: cart status line (waiting vs destination)
+- Farms / industry: cart status line (waiting vs destination)  
+- **Dock**: right-click status lines (no ship, quotas, no storage, permission blocked)
+
+### Blueprint
+- Multi-tile footprints (warehouse 3×3, forts) rotate/mirror correctly  
+- Color-only variants do not spin with geometric rotate  
 
 ### Bug fixes
 - Display scale: clicks match the hardware cursor (SDL2)  
@@ -31,15 +36,14 @@ All improvements below are **on `master`**. Short overview — details in [doc/F
 - Warehouseman / depot / supplier / docker re-route when storage rejects  
 - Tax/wage mood cheese reduced (harsh rates at settlement still hurt mood)  
 - Depot order threshold no longer hits 0  
-- Build-over-walkers ghost matches placement  
-
-
+- Build-over-walkers: ghost, walls, burning-ruin rebuild all honor the config  
+- Sentiment messages fire on **threshold cross** only (less spam)
 
 ### Optional gameplay (default **off**)
 - Storages accept goods at **50%+** workers  
 - Allow building when walkers stand on the tile  
 
-More detail: [doc/FORK_SUMMARY.md](doc/FORK_SUMMARY.md) · [doc/MILESTONE_A.md](doc/MILESTONE_A.md) · [doc/MILESTONE_BC.md](doc/MILESTONE_BC.md)
+More detail: [doc/FORK_SUMMARY.md](doc/FORK_SUMMARY.md) · [doc/PERFORMANCE.md](doc/PERFORMANCE.md) · [doc/UPSTREAM_PR_PLAN.md](doc/UPSTREAM_PR_PLAN.md)
 
 ---
 

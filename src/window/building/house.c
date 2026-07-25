@@ -341,7 +341,7 @@ void window_building_draw_house(building_info_context *c)
                     FONT_SMALL_PLAIN, COLOR_FONT_RED);
             }
         } else if (d.can_evolve) {
-            text_draw(string_from_ascii("Ready to evolve"),
+            text_draw(translation_for(TR_HOUSE_READY_TO_EVOLVE),
                 c->x_offset + 32, c->y_offset + 108, FONT_SMALL_PLAIN, COLOR_FONT_GREEN);
         }
     }

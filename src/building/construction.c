@@ -429,7 +429,7 @@ int building_construction_place_wall(int grid_offset)
 {
     int x = map_grid_offset_to_x(grid_offset);
     int y = map_grid_offset_to_y(grid_offset);
-    if (map_has_figure_at(grid_offset)) {
+    if (map_has_figure_at(grid_offset) && !config_get(CONFIG_GP_CH_BUILD_OVER_WALKERS)) {
         return 0;
     }
     return place_wall(x, y, x, y, 0, 0);

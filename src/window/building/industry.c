@@ -101,17 +101,22 @@ static void draw_farm(building_info_context *c, int help_id, const char *sound_f
             if (cart->action_state == FIGURE_ACTION_20_CARTPUSHER_INITIAL ||
                 cart->action_state == FIGURE_ACTION_245_CARTPUSHER_WAITING_FOR_DESTINATION) {
                 if (cart->min_max_seen == 2) {
-                    snprintf(cart_line, sizeof(cart_line), "Cart waiting: storages understaffed");
+                    snprintf(cart_line, sizeof(cart_line), "%s",
+                        (const char *) translation_for(TR_INDUSTRY_CART_WAITING_UNDERSTAFFED));
                 } else if (cart->min_max_seen == 1) {
-                    snprintf(cart_line, sizeof(cart_line), "Cart waiting: no accepting storage");
+                    snprintf(cart_line, sizeof(cart_line), "%s",
+                        (const char *) translation_for(TR_INDUSTRY_CART_WAITING_NO_STORAGE));
                 } else {
-                    snprintf(cart_line, sizeof(cart_line), "Cart seeking destination");
+                    snprintf(cart_line, sizeof(cart_line), "%s",
+                        (const char *) translation_for(TR_INDUSTRY_CART_SEEKING_DESTINATION));
                 }
             } else if (dest && dest->id) {
-                snprintf(cart_line, sizeof(cart_line), "Cart -> building %u loads %u",
+                snprintf(cart_line, sizeof(cart_line),
+                    (const char *) translation_for(TR_INDUSTRY_CART_TO_BUILDING),
                     dest->id, cart->loads_sold_or_carrying);
             } else {
-                snprintf(cart_line, sizeof(cart_line), "Cart active (act %u)", cart->action_state);
+                snprintf(cart_line, sizeof(cart_line),
+                    (const char *) translation_for(TR_INDUSTRY_CART_ACTIVE), cart->action_state);
             }
             text_draw((const uint8_t *) cart_line, c->x_offset + 32, c->y_offset + 94,
                 FONT_SMALL_PLAIN, COLOR_FONT_BLUE);

@@ -400,7 +400,8 @@ int building_is_still_burning(building *b)
     grid_slice *b_area = map_grid_get_grid_slice_square(grid_offset, size);
     for (int i = 0; i < b_area->size; i++) {
         int offset = b_area->grid_offsets[i];
-        if (map_has_figure_at(offset)) {  // also check for prefects on the tile - their presence prevents rebuilding
+        // Prefects/walkers on the tile prevent rebuild unless build-over-walkers is enabled
+        if (map_has_figure_at(offset) && !config_get(CONFIG_GP_CH_BUILD_OVER_WALKERS)) {
             return 1;
         }
         if (building_get(map_building_at(offset))->type == BUILDING_BURNING_RUIN) {

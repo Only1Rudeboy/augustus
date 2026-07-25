@@ -17,7 +17,6 @@
 #include "city/finance.h"
 #include "city/view.h"
 #include "core/config.h"
-#include "core/config.h"
 #include "core/log.h"
 #include "figure/figure.h"
 #include "figure/formation.h"
@@ -169,7 +168,9 @@ static int is_blocked_for_building(int grid_offset, int building_size, int *bloc
             tile_blocked = 1;
         }
         if (map_has_figure_at(tile_offset)) {
-            tile_blocked = check_figures;
+            if (check_figures && !config_get(CONFIG_GP_CH_BUILD_OVER_WALKERS)) {
+                tile_blocked = 1;
+            }
             figure_animal_try_nudge_at(grid_offset, tile_offset, building_size);
         }
         blocked_tiles[i] = tile_blocked;
@@ -751,7 +752,8 @@ static void draw_draggable_reservoir(const map_tile *tile, int x, int y)
 
             if (forbidden_terrain) {
                 blocked_tiles[i] = TILE_FORBIDDEN;
-            } else if (map_has_figure_at(tile_offset)) {
+            } else if (map_has_figure_at(tile_offset) &&
+                !config_get(CONFIG_GP_CH_BUILD_OVER_WALKERS)) {
                 blocked_tiles[i] = TILE_FORBIDDEN;
                 figure_animal_try_nudge_at(grid_offset, tile_offset, 3);
             } else if (discouraged_terrain) {
