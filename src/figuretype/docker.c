@@ -250,9 +250,16 @@ static int deliver_import_resource(figure *f, building *dock)
         return 0;
     }
     figure *ship = figure_get(ship_id);
-    if (ship->action_state != FIGURE_ACTION_112_TRADE_SHIP_MOORED || ship->loads_sold_or_carrying <= 0) {
+    if (ship->action_state != FIGURE_ACTION_112_TRADE_SHIP_MOORED) {
         return 0;
     }
+
+    /* Already holding cargo: only re-find a sink — ship may already be empty. */
+    int already_carrying = (f->resource_id != RESOURCE_NONE && f->loads_sold_or_carrying > 0);
+    if (!already_carrying && ship->loads_sold_or_carrying <= 0) {
+        return 0;
+    }
+
     map_point tile;
     int resource = f->resource_id;
     unsigned int destination_id = get_closest_building_for_import(f->x, f->y, ship->empire_city_id,
@@ -260,8 +267,14 @@ static int deliver_import_resource(figure *f, building *dock)
     if (!destination_id) {
         return 0;
     }
-    if (!f->destination_building_id) {
+    /* Don't re-pick the warehouse that just rejected us. */
+    if (already_carrying && destination_id == (unsigned int) f->destination_building_id) {
+        return 0;
+    }
+
+    if (!already_carrying) {
         ship->loads_sold_or_carrying--;
+        f->loads_sold_or_carrying = 1;
         f->action_state = FIGURE_ACTION_133_DOCKER_IMPORT_QUEUE;
     } else {
         f->action_state = FIGURE_ACTION_135_DOCKER_IMPORT_GOING_TO_STORAGE;
@@ -275,6 +288,23 @@ static int deliver_import_resource(figure *f, building *dock)
     f->destination_y = tile.y;
     f->resource_id = resource;
     return 1;
+}
+
+static void return_import_cargo_to_ship(figure *f, building *dock)
+{
+    if (f->resource_id == RESOURCE_NONE || f->loads_sold_or_carrying <= 0) {
+        return;
+    }
+    if (!dock->data.dock.trade_ship_id) {
+        return;
+    }
+    figure *ship = figure_get(dock->data.dock.trade_ship_id);
+    if (ship->state == FIGURE_STATE_ALIVE && ship->type == FIGURE_TRADE_SHIP &&
+        ship->action_state == FIGURE_ACTION_112_TRADE_SHIP_MOORED) {
+        ship->loads_sold_or_carrying += f->loads_sold_or_carrying;
+    }
+    f->resource_id = RESOURCE_NONE;
+    f->loads_sold_or_carrying = 0;
 }
 
 static int fetch_export_resource(figure *f, building *dock, int add_to_bought)
@@ -440,7 +470,10 @@ void figure_docker_action(figure *f)
             }
             if (building_get(f->destination_building_id)->state != BUILDING_STATE_IN_USE &&
                 !deliver_import_resource(f, b)) {
-                f->state = FIGURE_STATE_DEAD;
+                f->action_state = FIGURE_ACTION_138_DOCKER_IMPORT_RETURNING;
+                f->destination_x = f->source_x;
+                f->destination_y = f->source_y;
+                figure_route_remove(f);
             }
             break;
         case FIGURE_ACTION_136_DOCKER_EXPORT_GOING_TO_STORAGE:
@@ -487,10 +520,12 @@ void figure_docker_action(figure *f)
             }
             figure_movement_move_ticks(f, 1);
             if (f->direction == DIR_FIGURE_AT_DESTINATION) {
+                return_import_cargo_to_ship(f, b);
                 set_docker_as_idle(f);
             } else if (f->direction == DIR_FIGURE_REROUTE) {
                 figure_route_remove(f);
             } else if (f->direction == DIR_FIGURE_LOST) {
+                return_import_cargo_to_ship(f, b);
                 f->state = FIGURE_STATE_DEAD;
             }
             break;
@@ -538,9 +573,6 @@ void figure_docker_action(figure *f)
                 } else {
                     trade_city_id = 0;
                 }
-                f->action_state = FIGURE_ACTION_138_DOCKER_IMPORT_RETURNING;
-                f->destination_x = f->source_x;
-                f->destination_y = f->source_y;
                 f->wait_ticks = 0;
                 if (try_export_resource(f->destination_building_id, f->resource_id, trade_city_id)) {
                     int trader_id = figure_get(b->data.dock.trade_ship_id)->trader_id;
@@ -548,8 +580,17 @@ void figure_docker_action(figure *f)
                     city_health_update_sickness_level_in_building(b->id);
                     city_health_dispatch_sickness(f);
                     f->action_state = FIGURE_ACTION_137_DOCKER_EXPORT_RETURNING;
+                    f->destination_x = f->source_x;
+                    f->destination_y = f->source_y;
                 } else {
-                    fetch_export_resource(f, b, 1);
+                    /* Already reserved an export slot when leaving the dock — do not add again. */
+                    if (!fetch_export_resource(f, b, 0)) {
+                        figure *ship = figure_get(b->data.dock.trade_ship_id);
+                        if (ship && ship->trader_amount_bought > 0) {
+                            ship->trader_amount_bought--;
+                        }
+                        set_docker_as_idle(f);
+                    }
                 }
             }
             f->image_offset = 0;

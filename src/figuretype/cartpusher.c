@@ -405,9 +405,17 @@ void figure_cartpusher_action(figure *f)
                 figure_cartpusher_action(f);
                 return;
             }
-            if (building_get(f->destination_building_id)->state != BUILDING_STATE_IN_USE) {
-                f->action_state = FIGURE_ACTION_20_CARTPUSHER_INITIAL;
-                f->wait_ticks = 0;
+            {
+                building *dst = building_get(f->destination_building_id);
+                if (dst->state != BUILDING_STATE_IN_USE ||
+                    !building_storage_accepts_storage(dst, f->resource_id, 0)) {
+                    figure_route_remove(f);
+                    f->destination_building_id = 0;
+                    f->destination_x = 0;
+                    f->destination_y = 0;
+                    f->action_state = FIGURE_ACTION_20_CARTPUSHER_INITIAL;
+                    f->wait_ticks = 0;
+                }
             }
             break;
         case FIGURE_ACTION_22_CARTPUSHER_DELIVERING_TO_GRANARY:
@@ -426,9 +434,17 @@ void figure_cartpusher_action(figure *f)
                 figure_cartpusher_action(f);
                 return;
             }
-            if (building_get(f->destination_building_id)->state != BUILDING_STATE_IN_USE) {
-                f->action_state = FIGURE_ACTION_20_CARTPUSHER_INITIAL;
-                f->wait_ticks = 0;
+            {
+                building *dst = building_get(f->destination_building_id);
+                if (dst->state != BUILDING_STATE_IN_USE ||
+                    !building_storage_accepts_storage(dst, f->resource_id, 0)) {
+                    figure_route_remove(f);
+                    f->destination_building_id = 0;
+                    f->destination_x = 0;
+                    f->destination_y = 0;
+                    f->action_state = FIGURE_ACTION_20_CARTPUSHER_INITIAL;
+                    f->wait_ticks = 0;
+                }
             }
             break;
         case FIGURE_ACTION_23_CARTPUSHER_DELIVERING_TO_WORKSHOP:

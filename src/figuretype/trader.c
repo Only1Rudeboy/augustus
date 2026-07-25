@@ -679,6 +679,22 @@ void figure_native_trader_action(figure *f)
                         city_finance_process_export(price * removed);
                         city_health_update_sickness_level_in_building(f->destination_building_id);
                         f->trader_amount_bought += 3; //native traders 3 times less efficient
+                    } else {
+                        /* Resource raced away — leave this building, find another. */
+                        map_point tile;
+                        int building_id = get_closest_storage(f, f->x, f->y, 0, &tile);
+                        if (building_id) {
+                            f->action_state = FIGURE_ACTION_160_NATIVE_TRADER_GOING_TO_STORAGE;
+                            f->destination_building_id = building_id;
+                            f->destination_x = tile.x;
+                            f->destination_y = tile.y;
+                            figure_route_remove(f);
+                        } else {
+                            f->action_state = FIGURE_ACTION_161_NATIVE_TRADER_RETURNING;
+                            f->destination_x = f->source_x;
+                            f->destination_y = f->source_y;
+                            figure_route_remove(f);
+                        }
                     }
 
                 } else {
@@ -689,10 +705,12 @@ void figure_native_trader_action(figure *f)
                         f->destination_building_id = building_id;
                         f->destination_x = tile.x;
                         f->destination_y = tile.y;
+                        figure_route_remove(f);
                     } else {
                         f->action_state = FIGURE_ACTION_161_NATIVE_TRADER_RETURNING;
                         f->destination_x = f->source_x;
                         f->destination_y = f->source_y;
+                        figure_route_remove(f);
                     }
                 }
             }
