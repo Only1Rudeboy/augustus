@@ -65,6 +65,12 @@ void building_construction_record_view_position(int view_x, int view_y, int grid
 void building_construction_get_view_position(int *view_x, int *view_y);
 int building_construction_get_start_grid_offset(void);
 
+/**
+ * Get drag rectangle corners while a construction drag is active (or last start).
+ * @return 1 if a drag area is available
+ */
+int building_construction_get_drag_area(int *x_start, int *y_start, int *x_end, int *y_end);
+
 void building_construction_reset_draw_as_constructing(void);
 int building_construction_draw_as_constructing(void);
 /** @brief to place a single wall tile at the given grid offset. since walls are being moved to building category,

@@ -97,6 +97,8 @@ static const char *ini_keys[] = {
     "clone_building",
     "copy_building_settings",
     "paste_building_settings",
+    "blueprint_copy",
+    "blueprint_paste",
     "undo",
     "mothball_toggle",
     "storage_order",
@@ -200,6 +202,8 @@ static void init_defaults(void)
     set_mapping(KEY_TYPE_MIDDLE_MOUSE_BUTTON, KEY_MOD_NONE, HOTKEY_RESET_ZOOM);
     set_layout_mapping("R", KEY_TYPE_R, KEY_MOD_NONE, HOTKEY_ROTATE_BUILDING);
     set_layout_mapping("Q", KEY_TYPE_Q, KEY_MOD_NONE, HOTKEY_BUILD_CLONE);
+    set_layout_mapping("C", KEY_TYPE_C, KEY_MOD_CTRL, HOTKEY_BLUEPRINT_COPY);
+    set_layout_mapping("V", KEY_TYPE_V, KEY_MOD_CTRL, HOTKEY_BLUEPRINT_PASTE);
     set_layout_mapping("X", KEY_TYPE_X, KEY_MOD_NONE, HOTKEY_MOTHBALL_TOGGLE);
     set_mapping(KEY_TYPE_1, KEY_MOD_NONE, HOTKEY_SHOW_ADVISOR_LABOR);
     set_mapping(KEY_TYPE_2, KEY_MOD_NONE, HOTKEY_SHOW_ADVISOR_MILITARY);

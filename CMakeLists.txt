@@ -333,6 +333,7 @@ set(BUILDING_FILES
     ${PROJECT_SOURCE_DIR}/src/building/barracks.c
     ${PROJECT_SOURCE_DIR}/src/building/building.c
     ${PROJECT_SOURCE_DIR}/src/building/caravanserai.c
+    ${PROJECT_SOURCE_DIR}/src/building/blueprint.c
     ${PROJECT_SOURCE_DIR}/src/building/clone.c
     ${PROJECT_SOURCE_DIR}/src/building/connectable.c
     ${PROJECT_SOURCE_DIR}/src/building/construction.c

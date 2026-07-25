@@ -1438,6 +1438,26 @@ int building_construction_get_start_grid_offset(void)
     return data.start.grid_offset;
 }
 
+int building_construction_get_drag_area(int *x_start, int *y_start, int *x_end, int *y_end)
+{
+    if (!data.start.grid_offset) {
+        return 0;
+    }
+    if (x_start) {
+        *x_start = data.start.x;
+    }
+    if (y_start) {
+        *y_start = data.start.y;
+    }
+    if (x_end) {
+        *x_end = data.end.grid_offset ? data.end.x : data.start.x;
+    }
+    if (y_end) {
+        *y_end = data.end.grid_offset ? data.end.y : data.start.y;
+    }
+    return 1;
+}
+
 void building_construction_reset_draw_as_constructing(void)
 {
     data.draw_as_constructing = 0;

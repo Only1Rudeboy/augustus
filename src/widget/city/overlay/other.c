@@ -3,6 +3,7 @@
 #include "assets/assets.h"
 #include "building/animation.h"
 #include "building/building.h"
+#include "building/house_evolution.h"
 #include "building/industry.h"
 #include "building/monument.h"
 #include "building/properties.h"
@@ -1022,6 +1023,77 @@ const city_overlay *city_overlay_for_mothball(void)
         .type = OVERLAY_MOTHBALL,
         .show_building = show_building_mothball,
         .show_figure = show_figure_none
+    };
+    return &overlay;
+}
+
+static int count_house_need_blockers(const building *b)
+{
+    if (!b || !b->house_size || b->house_population <= 0) {
+        return 0;
+    }
+    house_upgrade_diagnose d;
+    building_house_diagnose_upgrade(b, &d);
+    if (d.is_max_level || d.has_plague || d.can_evolve) {
+        return 0;
+    }
+    int n = 0;
+    n += d.missing_desirability;
+    n += d.missing_water;
+    n += d.missing_entertainment;
+    n += d.missing_education;
+    n += d.missing_religion;
+    n += d.missing_barber;
+    n += d.missing_bathhouse;
+    n += d.missing_health;
+    n += d.missing_food;
+    n += d.missing_pottery;
+    n += d.missing_oil;
+    n += d.missing_furniture;
+    n += d.missing_wine;
+    n += d.missing_second_wine;
+    n += d.missing_space;
+    return n;
+}
+
+static int show_building_house_needs(const building *b)
+{
+    return b->house_size > 0 && b->house_population > 0;
+}
+
+static int get_column_height_house_needs(const building *b)
+{
+    int blockers = count_house_need_blockers(b);
+    if (blockers <= 0) {
+        return NO_COLUMN;
+    }
+    return calc_bound(blockers, 1, 10);
+}
+
+static int get_tooltip_house_needs(tooltip_context *c, int grid_offset)
+{
+    building *b = building_get(map_building_at(grid_offset));
+    if (!b || !b->house_size || !b->house_population) {
+        return 0;
+    }
+    int blockers = count_house_need_blockers(b);
+    if (blockers <= 0) {
+        c->translation_key = TR_TOOLTIP_OVERLAY_HOUSE_NEEDS_OK;
+    } else {
+        c->translation_key = TR_TOOLTIP_OVERLAY_HOUSE_NEEDS_BLOCKED;
+    }
+    return 0;
+}
+
+const city_overlay *city_overlay_for_house_needs(void)
+{
+    static city_overlay overlay = {
+        .type = OVERLAY_HOUSE_NEEDS,
+        .column_type = COLUMN_COLOR_RED,
+        .show_building = show_building_house_needs,
+        .show_figure = show_figure_none,
+        .get_column_height = get_column_height_house_needs,
+        .get_tooltip = get_tooltip_house_needs
     };
     return &overlay;
 }

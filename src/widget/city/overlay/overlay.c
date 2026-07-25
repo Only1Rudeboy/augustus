@@ -140,6 +140,8 @@ const city_overlay *city_overlay_get(void)
             return city_overlay_for_housing_groups_villas();
         case OVERLAY_HOUSING_GROUPS_PALACES:
             return city_overlay_for_housing_groups_palaces();
+        case OVERLAY_HOUSE_NEEDS:
+            return city_overlay_for_house_needs();
         default:
             return &no_overlay;
     }

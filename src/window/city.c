@@ -1,5 +1,6 @@
 #include "city.h"
 
+#include "building/blueprint.h"
 #include "building/clone.h"
 #include "building/construction.h"
 #include "building/data_transfer.h"
@@ -830,6 +831,20 @@ static void handle_hotkeys(const hotkeys *h)
         if (building_id) {
             building *b = building_main(building_get(building_id));
             building_data_transfer_paste(b, 0);
+        }
+    }
+    if (h->blueprint_copy) {
+        int xs, ys, xe, ye;
+        if (building_construction_in_progress() && building_construction_get_drag_area(&xs, &ys, &xe, &ye)) {
+            building_blueprint_copy_area(xs, ys, xe, ye);
+        } else {
+            building_blueprint_copy_at(widget_city_current_grid_offset());
+        }
+    }
+    if (h->blueprint_paste) {
+        int grid_offset = widget_city_current_grid_offset();
+        if (map_grid_is_valid_offset(grid_offset)) {
+            building_blueprint_paste_at(map_grid_offset_to_x(grid_offset), map_grid_offset_to_y(grid_offset));
         }
     }
     if (h->show_empire_map) {

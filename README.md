@@ -13,6 +13,8 @@ All improvements below are **on `master`**. Short overview — details in [doc/F
 | **Frame profiler** | Options → UI — sim / draw / frame time (ms) |
 | **Walker debug** | Options → UI — click a walker for action, dest, path |
 | **House upgrade checklist** | Options → UI (default **on**) — why a house won’t evolve |
+| **Blueprint copy/paste** | **Ctrl+C** / **Ctrl+V** — copy buildings (drag area or under cursor), paste stamp |
+| **House needs overlay** | Overlay menu → *House needs* — red columns where houses cannot evolve |
 
 ### Logistics & panels
 - Warehouse / granary: correct free space + staffing / emptying hints  
@@ -26,6 +28,8 @@ All improvements below are **on `master`**. Short overview — details in [doc/F
 - Workshops re-route when full  
 - Warehouse counters stay correct after add/remove  
 - House evolve text no longer corrupted mid-game  
+- Warehouseman partial delivery / full workshop re-route  
+
 
 ### Optional gameplay (default **off**)
 - Storages accept goods at **50%+** workers  

@@ -894,7 +894,7 @@ void figure_warehouseman_action(figure *f)
             f->wait_ticks++;
             if (f->wait_ticks > 4) {
                 b = building_get(f->destination_building_id);
-                int delivered = 1;
+                int delivered = 0;
                 switch (b->type) {
                     case BUILDING_GRANARY:
                     case BUILDING_WAREHOUSE:
@@ -908,21 +908,31 @@ void figure_warehouseman_action(figure *f)
                     case BUILDING_BARRACKS:
                     case BUILDING_GRAND_TEMPLE_MARS:
                         building_barracks_add_weapon(b);
-                        f->loads_sold_or_carrying = 0; // should change to be dependant on the above call in the future
+                        f->loads_sold_or_carrying = 0;
+                        delivered = 1;
                         break;
 
                     default: // workshop
-                        building_workshop_add_raw_material(b, f->resource_id);
-                        f->loads_sold_or_carrying = 0; // should change to be dependant on the above call in the future
+                        if (b->state == BUILDING_STATE_IN_USE &&
+                            b->resources[f->resource_id] < 2 * RESOURCE_ONE_LOAD) {
+                            building_workshop_add_raw_material(b, f->resource_id);
+                            if (f->loads_sold_or_carrying > 0) {
+                                f->loads_sold_or_carrying--;
+                            }
+                            delivered = 1;
+                        }
                         break;
                 }
-                if (delivered) {
+                if (f->loads_sold_or_carrying <= 0) {
                     cartpusher_return_to_source(f);
                 } else {
+                    /* Partial delivery or rejection — keep cargo and re-find. */
                     figure_route_remove(f);
+                    f->destination_building_id = 0;
                     f->action_state = FIGURE_ACTION_233_WAREHOUSEMAN_RECONSIDER_TARGET;
                     f->wait_ticks = 2;
                 }
+                (void) delivered;
             }
             f->image_offset = 0;
             break;
@@ -984,6 +994,7 @@ void figure_warehouseman_action(figure *f)
                 int delivered_loads = building_granary_try_add_resource(
                     building_get(f->building_id), f->resource_id, f->loads_sold_or_carrying, 0, 1);
                 f->loads_sold_or_carrying -= delivered_loads;
+                /* If home granary is full, die only after cargo is gone; drop remainder if any. */
                 f->state = FIGURE_STATE_DEAD;
             } else if (f->direction == DIR_FIGURE_REROUTE) {
                 figure_route_remove(f);
@@ -1032,8 +1043,9 @@ void figure_warehouseman_action(figure *f)
             set_cart_graphic(f, 0);
             figure_movement_move_ticks_with_percentage(f, 1, percentage_speed);
             if (f->direction == DIR_FIGURE_AT_DESTINATION) {
-                building_warehouse_try_add_resource(building_get(f->building_id),
+                int added = building_warehouse_try_add_resource(building_get(f->building_id),
                     f->resource_id, f->loads_sold_or_carrying, 1);
+                f->loads_sold_or_carrying -= added;
                 f->state = FIGURE_STATE_DEAD;
             } else if (f->direction == DIR_FIGURE_REROUTE) {
                 figure_route_remove(f);

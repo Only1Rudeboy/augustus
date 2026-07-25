@@ -13,13 +13,16 @@ Everything listed here is merged into **`master`**.
 
 ---
 
-## Tools (Options → UI)
+## Tools (Options → UI / hotkeys)
 
-| Option | What it does |
-|--------|----------------|
+| Option / key | What it does |
+|--------------|----------------|
 | Show frame profiler | FPS + average sim / draw / frame ms |
 | Show walker debug info | Click walker: id, action, destination, path, wait, cargo |
 | Show house upgrade checklist | Checklist of missing needs for next level (default **on**) |
+| **Ctrl+C** blueprint copy | Copy buildings under cursor, or in an active drag rectangle (e.g. clear-land drag) |
+| **Ctrl+V** blueprint paste | Paste the stamp with origin at the cursor tile |
+| Overlay → *House needs* | Red columns = houses missing services/goods to evolve |
 
 ---
 
@@ -40,7 +43,8 @@ Everything listed here is merged into **`master`**.
 - Cart pushers re-find a destination if a warehouse stops accepting.  
 - Partial unload: leftover loads go to another building.  
 - Full workshops: re-route instead of looping.  
-- Warehouse totals updated after every add/remove.
+- Warehouse totals updated after every add/remove.  
+- **Warehousemen** same partial-delivery + workshop capacity checks.
 
 ### Fairness
 - Undo after deleting houses restores the **same ages** (no free-worker exploit).  
