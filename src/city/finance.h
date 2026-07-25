@@ -41,6 +41,9 @@ int city_finance_out_of_money(void);
 
 int city_finance_tax_percentage(void);
 
+/** Tax rate at last monthly settlement (for mood; anti tax-cheese). */
+int city_finance_last_settled_tax_percentage(void);
+
 void city_finance_change_tax_percentage(int change);
 
 void city_finance_set_tax_percentage(int new_rate);

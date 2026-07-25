@@ -404,11 +404,26 @@ static void activate_monthly_tourism(void)
     }
 }
 
+/* Session snapshot of tax rate at last monthly settlement (anti-cheese #946). */
+static int last_settled_tax_percentage = -1;
+
+int city_finance_last_settled_tax_percentage(void)
+{
+    if (last_settled_tax_percentage < 0) {
+        return city_data.finance.tax_percentage;
+    }
+    return last_settled_tax_percentage;
+}
+
 void city_finance_handle_month_change(void)
 {
     collect_monthly_taxes();
     activate_monthly_tourism();
     pay_monthly_wages();
+    /* Snapshot rates used for settlement — mood must not ignore harsh rates
+     * set only for the collection tick (#946 cheese). */
+    city_data.sentiment.wages = city_data.labor.wages;
+    last_settled_tax_percentage = city_data.finance.tax_percentage;
     pay_monthly_interest();
     pay_monthly_salary();
     pay_monthly_building_levies();

@@ -13,8 +13,8 @@ All improvements below are **on `master`**. Short overview — details in [doc/F
 | **Frame profiler** | Options → UI — sim / draw / frame time (ms) |
 | **Walker debug** | Options → UI — click a walker for action, dest, path |
 | **House upgrade checklist** | Options → UI (default **on**) — why a house won’t evolve |
-| **Blueprint copy/paste** | **Ctrl+C** / **Ctrl+V** — copy buildings (drag area or under cursor), paste stamp |
-| **House needs overlay** | Overlay menu → *House needs* — red columns where houses cannot evolve |
+| **Blueprint** | **Ctrl+C** copy · **Ctrl+V** paste · **Ctrl+R** rotate · **Ctrl+M** mirror |
+| **House heatmaps** | Overlay menu: *House needs*, *Food stocks*, *Missing baths*, *Entertainment gap* |
 
 ### Logistics & panels
 - Warehouse / granary: correct free space + staffing / emptying hints  
@@ -28,7 +28,11 @@ All improvements below are **on `master`**. Short overview — details in [doc/F
 - Workshops re-route when full  
 - Warehouse counters stay correct after add/remove  
 - House evolve text no longer corrupted mid-game  
-- Warehouseman partial delivery / full workshop re-route  
+- Warehouseman / depot / supplier / docker re-route when storage rejects  
+- Tax/wage mood cheese reduced (harsh rates at settlement still hurt mood)  
+- Depot order threshold no longer hits 0  
+- Build-over-walkers ghost matches placement  
+
 
 
 ### Optional gameplay (default **off**)

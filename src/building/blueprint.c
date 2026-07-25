@@ -4,6 +4,7 @@
 #include "building/clone.h"
 #include "building/construction_building.h"
 #include "building/properties.h"
+#include "building/rotation.h"
 #include "city/finance.h"
 #include "city/warning.h"
 #include "core/calc.h"
@@ -12,6 +13,7 @@
 #include "map/building.h"
 #include "map/grid.h"
 
+#include <stdio.h>
 #include <string.h>
 
 static struct {
@@ -125,6 +127,49 @@ int building_blueprint_copy_at(int grid_offset)
     return building_blueprint_copy_area(x, y, x, y);
 }
 
+int building_blueprint_width(void)
+{
+    return data.width;
+}
+
+int building_blueprint_height(void)
+{
+    return data.height;
+}
+
+int building_blueprint_rotate_clockwise(void)
+{
+    if (!data.count) {
+        return 0;
+    }
+    /* (dx, dy) -> (height-1-dy, dx) so origin stays top-left of bbox */
+    int old_w = data.width;
+    int old_h = data.height;
+    for (int i = 0; i < data.count; i++) {
+        int dx = data.items[i].dx;
+        int dy = data.items[i].dy;
+        data.items[i].dx = old_h - 1 - dy;
+        data.items[i].dy = dx;
+        data.items[i].rotation = (data.items[i].rotation + 1) % 4;
+    }
+    data.width = old_h;
+    data.height = old_w;
+    city_warning_show_custom(string_from_ascii("Blueprint rotated"), NEW_WARNING_SLOT);
+    return 1;
+}
+
+int building_blueprint_mirror_horizontal(void)
+{
+    if (!data.count) {
+        return 0;
+    }
+    for (int i = 0; i < data.count; i++) {
+        data.items[i].dx = data.width - 1 - data.items[i].dx;
+    }
+    city_warning_show_custom(string_from_ascii("Blueprint mirrored"), NEW_WARNING_SLOT);
+    return 1;
+}
+
 int building_blueprint_paste_at(int x, int y)
 {
     if (!data.count) {
@@ -151,7 +196,10 @@ int building_blueprint_paste_at(int x, int y)
             city_warning_show(WARNING_OUT_OF_MONEY, NEW_WARNING_SLOT);
             break;
         }
+        int saved_rot = building_rotation_get_rotation();
+        building_rotation_force_set(item->rotation);
         int ok = building_construction_place_building(item->type, px, py, 1);
+        building_rotation_force_set(saved_rot);
         if (ok) {
             placed++;
             if (cost > 0) {
@@ -163,7 +211,9 @@ int building_blueprint_paste_at(int x, int y)
 
     if (placed) {
         game_undo_finish_build(cost_total);
-        city_warning_show_custom(string_from_ascii("Blueprint pasted"), NEW_WARNING_SLOT);
+        char msg[64];
+        snprintf(msg, sizeof(msg), "Pasted %d/%d (%dx%d)", placed, data.count, data.width, data.height);
+        city_warning_show_custom((const uint8_t *) msg, NEW_WARNING_SLOT);
     } else {
         game_undo_disable();
         city_warning_show_custom(string_from_ascii("Could not paste blueprint"), NEW_WARNING_SLOT);

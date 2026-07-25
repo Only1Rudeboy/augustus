@@ -155,6 +155,15 @@ void building_rotation_rotate_backward(void)
     }
 }
 
+void building_rotation_force_set(int rotation)
+{
+    if (rotation < 0) {
+        rotation = 0;
+    }
+    data.rotation = rotation;
+    data.extra_rotation = rotation;
+}
+
 void building_rotation_reset_rotation(void)
 {
     data.rotation = 0;

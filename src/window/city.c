@@ -847,6 +847,12 @@ static void handle_hotkeys(const hotkeys *h)
             building_blueprint_paste_at(map_grid_offset_to_x(grid_offset), map_grid_offset_to_y(grid_offset));
         }
     }
+    if (h->blueprint_rotate) {
+        building_blueprint_rotate_clockwise();
+    }
+    if (h->blueprint_mirror) {
+        building_blueprint_mirror_horizontal();
+    }
     if (h->show_empire_map) {
         if (!window_is(WINDOW_EMPIRE)) {
             window_empire_show_checked();

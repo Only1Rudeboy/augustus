@@ -158,14 +158,23 @@ static int storage_add_resource(building *b, int resource, int amount)
     return amount;
 }
 
-static void set_destination(figure *f, unsigned int building_id, int action_state)
+static void clear_destination(figure *f)
+{
+    figure_route_remove(f);
+    f->destination_building_id = 0;
+    f->destination_x = 0;
+    f->destination_y = 0;
+}
+
+/* Returns 1 if destination was set. Refuses dead/missing buildings (no silent heading). */
+static int set_destination(figure *f, unsigned int building_id, int action_state)
 {
     if (!building_id) {
-        return;
+        return 0;
     }
     building *dest = building_get(building_id);
-    if (!dest) {
-        return;
+    if (!dest || dest->state != BUILDING_STATE_IN_USE) {
+        return 0;
     }
     map_point road_access;
     get_storage_road_access(dest, &road_access);
@@ -175,12 +184,45 @@ static void set_destination(figure *f, unsigned int building_id, int action_stat
     f->action_state = action_state;
     figure_route_remove(f);
     set_cart_graphic(f);
+    return 1;
 }
 
 static int is_storage_valid(building *b, int resource)
 {
     return b && b->state == BUILDING_STATE_IN_USE &&
         building_storage_get_state(b, resource, 0) != BUILDING_STORAGE_STATE_NOT_ACCEPTING;
+}
+
+/* True when the figure's current destination building is usable. */
+static int current_destination_in_use(const figure *f)
+{
+    if (!f->destination_building_id) {
+        return 0;
+    }
+    building *dest = building_get(f->destination_building_id);
+    return dest && dest->state == BUILDING_STATE_IN_USE;
+}
+
+/* Re-route remaining cargo without dropping it: prefer source, then order dest. */
+static void reroute_with_remaining_cargo(figure *f, building *depot)
+{
+    unsigned int src_id = depot->data.depot.current_order.src_storage_id;
+    unsigned int dst_id = depot->data.depot.current_order.dst_storage_id;
+    building *src = building_get(src_id);
+    building *dst = building_get(dst_id);
+
+    clear_destination(f);
+    if (src_id && is_storage_valid(src, f->resource_id) &&
+        set_destination(f, src_id, FIGURE_ACTION_250_DEPOT_CART_PUSHER_RETURN_TO_SOURCE)) {
+        return;
+    }
+    if (dst_id && is_storage_valid(dst, f->resource_id) &&
+        set_destination(f, dst_id, FIGURE_ACTION_241_DEPOT_CART_PUSHER_HEADING_TO_DESTINATION)) {
+        return;
+    }
+    /* No valid sink — hold cargo and wait for order/storage update. Never die with cargo. */
+    f->action_state = FIGURE_ACTION_244_DEPOT_CART_PUSHER_CANCEL_ORDER;
+    set_cart_graphic(f);
 }
 
 static void try_reroute_order_dst(figure *f, building *b)
@@ -199,9 +241,15 @@ static void try_reroute_order_dst(figure *f, building *b)
         return;
     }
     building *new_dst = building_get(new_dst_id);
-    if (is_storage_valid(new_dst, f->resource_id)) {
-        set_destination(f, new_dst_id, FIGURE_ACTION_241_DEPOT_CART_PUSHER_HEADING_TO_DESTINATION);
+    if (is_storage_valid(new_dst, f->resource_id) &&
+        set_destination(f, new_dst_id, FIGURE_ACTION_241_DEPOT_CART_PUSHER_HEADING_TO_DESTINATION)) {
+        return;
+    }
+    /* Order dest dead/rejected — clear and re-route remaining cargo. */
+    if (f->loads_sold_or_carrying > 0 && f->resource_id != RESOURCE_NONE) {
+        reroute_with_remaining_cargo(f, b);
     } else {
+        clear_destination(f);
         f->action_state = FIGURE_ACTION_244_DEPOT_CART_PUSHER_CANCEL_ORDER;
     }
 }
@@ -226,16 +274,13 @@ static void try_reroute_order_src(figure *f, building *depot)
     }
 
     if (!is_storage_valid(new_src, depot->data.depot.current_order.resource_type)) {
-        // if new source becomes invalid and there is cargo (return) - go to destination, else cancel
+        // if new source becomes invalid and there is cargo — re-find sink (never home with cargo)
         if (f->loads_sold_or_carrying > 0 && f->resource_id != RESOURCE_NONE) {
-            int dst_id = depot->data.depot.current_order.dst_storage_id;
-            building *dst = building_get(dst_id);
-            if (is_storage_valid(dst, f->resource_id)) {
-                set_destination(f, dst_id, FIGURE_ACTION_241_DEPOT_CART_PUSHER_HEADING_TO_DESTINATION);
-                return;
-            }
+            reroute_with_remaining_cargo(f, depot);
+            return;
         }
-        set_destination(f, f->building_id, FIGURE_ACTION_244_DEPOT_CART_PUSHER_CANCEL_ORDER);
+        clear_destination(f);
+        f->action_state = FIGURE_ACTION_244_DEPOT_CART_PUSHER_CANCEL_ORDER;
     }
 }
 
@@ -243,7 +288,8 @@ static void figure_cart_unload_or_return(figure *f, building *b)
 {
     // if there is no cargo return to the depot
     if (f->loads_sold_or_carrying <= 0 || f->resource_id == RESOURCE_NONE) {
-        f->action_state = FIGURE_ACTION_243_DEPOT_CART_PUSHER_RETURNING;
+        f->loads_sold_or_carrying = 0;
+        f->resource_id = RESOURCE_NONE;
         set_destination(f, f->building_id, FIGURE_ACTION_243_DEPOT_CART_PUSHER_RETURNING);
         return;
     }
@@ -253,28 +299,50 @@ static void figure_cart_unload_or_return(figure *f, building *b)
     building *dst = building_get(dst_id);
 
     // determine where to unload: if we are at the source - unload to the source, otherwise to the destination
-    building *target = (f->action_state == FIGURE_ACTION_240_DEPOT_CART_PUSHER_AT_SOURCE) ? src : dst;
+    int at_source = (f->action_state == FIGURE_ACTION_240_DEPOT_CART_PUSHER_AT_SOURCE);
+    building *target = at_source ? src : dst;
 
     if (!target || !is_storage_valid(target, f->resource_id)) {
-        // if the target is invalid, try to return to the depot or cancel
-        if (f->action_state == FIGURE_ACTION_240_DEPOT_CART_PUSHER_AT_SOURCE) {
-            set_destination(f, f->building_id, FIGURE_ACTION_243_DEPOT_CART_PUSHER_RETURNING);
-        } else if (src_id) {
-            set_destination(f, src_id, FIGURE_ACTION_244_DEPOT_CART_PUSHER_CANCEL_ORDER);
+        /* Dead / non-accepting sink: keep cargo, clear dest, re-find. */
+        if (at_source) {
+            /* Returning cargo but source is gone — try dest, else hold (do not return home with cargo). */
+            clear_destination(f);
+            if (dst_id && is_storage_valid(dst, f->resource_id)) {
+                set_destination(f, dst_id, FIGURE_ACTION_241_DEPOT_CART_PUSHER_HEADING_TO_DESTINATION);
+            } else {
+                f->action_state = FIGURE_ACTION_244_DEPOT_CART_PUSHER_CANCEL_ORDER;
+                set_cart_graphic(f);
+            }
+        } else {
+            /* Destination dead/rejected — return remaining cargo to source if possible. */
+            reroute_with_remaining_cargo(f, b);
         }
         return;
     }
-    // unload
+    // unload (returns amount that did not fit — never silently discard cargo)
+    int before = f->loads_sold_or_carrying;
     f->loads_sold_or_carrying = storage_add_resource(target, f->resource_id, f->loads_sold_or_carrying);
 
     // If everything is unloaded - return to the depot
     if (f->loads_sold_or_carrying == 0) {
         city_health_dispatch_sickness(f);
         f->resource_id = RESOURCE_NONE;
-        f->action_state = FIGURE_ACTION_243_DEPOT_CART_PUSHER_RETURNING;
         set_destination(f, f->building_id, FIGURE_ACTION_243_DEPOT_CART_PUSHER_RETURNING);
     } else {
+        /* Partial delivery or rejection: keep remaining cargo and re-find a sink. */
+        if (f->loads_sold_or_carrying < before) {
+            city_health_dispatch_sickness(f);
+        }
         set_cart_graphic(f);
+        if (at_source) {
+            /*
+             * Source full while returning leftover goods — wait and retry here.
+             * Avoid bouncing dest↔source forever when both are full.
+             */
+        } else {
+            /* Failed at destination: clear dest and try returning remainder to source. */
+            reroute_with_remaining_cargo(f, b);
+        }
     }
 }
 
@@ -336,6 +404,17 @@ void figure_depot_cartpusher_action(figure *f)
         case FIGURE_ACTION_250_DEPOT_CART_PUSHER_RETURN_TO_SOURCE:
         {
             set_cart_graphic(f);
+            /* Destination deleted / not IN_USE mid-trip: clear dest and re-route (keep cargo). */
+            if (!current_destination_in_use(f)) {
+                clear_destination(f);
+                f->wait_ticks = 0;
+                if (f->loads_sold_or_carrying > 0 && f->resource_id != RESOURCE_NONE) {
+                    reroute_with_remaining_cargo(f, b);
+                } else {
+                    f->action_state = FIGURE_ACTION_244_DEPOT_CART_PUSHER_CANCEL_ORDER;
+                }
+                break;
+            }
             if (f->wait_ticks > DEPOT_CART_REROUTE_DELAY) {
                 figure_movement_move_ticks_with_percentage(f, speed_factor, percentage_speed);
 
@@ -350,6 +429,7 @@ void figure_depot_cartpusher_action(figure *f)
                     }
                     f->wait_ticks = 0;
                 } else if (f->direction == DIR_FIGURE_LOST) {
+                    clear_destination(f);
                     f->action_state = FIGURE_ACTION_244_DEPOT_CART_PUSHER_CANCEL_ORDER;
                     f->wait_ticks = 0;
                 } else if (f->direction == DIR_FIGURE_REROUTE) {
@@ -401,9 +481,11 @@ void figure_depot_cartpusher_action(figure *f)
                     f->resource_id = b->data.depot.current_order.resource_type;
                     f->loads_sold_or_carrying = amount_loaded;
 
-                    set_destination(f, b->data.depot.current_order.dst_storage_id,
-                                                FIGURE_ACTION_241_DEPOT_CART_PUSHER_HEADING_TO_DESTINATION);
-                    f->wait_ticks = DEPOT_CART_REROUTE_DELAY + 1;
+                    if (!set_destination(f, b->data.depot.current_order.dst_storage_id,
+                                                FIGURE_ACTION_241_DEPOT_CART_PUSHER_HEADING_TO_DESTINATION)) {
+                        /* Dest dead/missing after taking cargo — re-find without dropping goods. */
+                        reroute_with_remaining_cargo(f, b);
+                    }
                 }
                 f->wait_ticks = 0;
             }
@@ -412,6 +494,17 @@ void figure_depot_cartpusher_action(figure *f)
 
         case FIGURE_ACTION_242_DEPOT_CART_PUSHER_AT_DESTINATION:
             set_cart_graphic(f);
+            /* Dest deleted while waiting to unload: re-route remaining cargo. */
+            if (!current_destination_in_use(f)) {
+                clear_destination(f);
+                f->wait_ticks = 0;
+                if (f->loads_sold_or_carrying > 0 && f->resource_id != RESOURCE_NONE) {
+                    reroute_with_remaining_cargo(f, b);
+                } else {
+                    f->action_state = FIGURE_ACTION_244_DEPOT_CART_PUSHER_CANCEL_ORDER;
+                }
+                break;
+            }
             f->wait_ticks++;
             if (f->wait_ticks > DEPOT_CART_LOAD_OFFLOAD_DELAY) {
                 figure_cart_unload_or_return(f, b);
@@ -437,9 +530,11 @@ void figure_depot_cartpusher_action(figure *f)
         case FIGURE_ACTION_244_DEPOT_CART_PUSHER_CANCEL_ORDER:
         {
             if (f->loads_sold_or_carrying > 0 && f->resource_id != RESOURCE_NONE) {
-                set_destination(f, b->data.depot.current_order.src_storage_id,
-                                            FIGURE_ACTION_250_DEPOT_CART_PUSHER_RETURN_TO_SOURCE);
+                /* Prefer putting cargo back at source; else try dest; else hold (no cargo drop). */
+                reroute_with_remaining_cargo(f, b);
             } else {
+                f->loads_sold_or_carrying = 0;
+                f->resource_id = RESOURCE_NONE;
                 set_destination(f, f->building_id, FIGURE_ACTION_243_DEPOT_CART_PUSHER_RETURNING);
             }
             set_cart_graphic(f);

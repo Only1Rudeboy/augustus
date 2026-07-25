@@ -560,7 +560,8 @@ static void draw_default(const map_tile *tile, int x_view, int y_view, building_
 
         if (fully_blocked || forbidden_terrain) {
             blocked_tiles[i] = TILE_FORBIDDEN;
-        } else if (check_figure && map_has_figure_at(tile_offset)) {
+        } else if (check_figure && map_has_figure_at(tile_offset) &&
+            !config_get(CONFIG_GP_CH_BUILD_OVER_WALKERS)) {
             blocked_tiles[i] = TILE_FORBIDDEN;
             figure_animal_try_nudge_at(grid_offset, tile_offset, building_size);
         } else {

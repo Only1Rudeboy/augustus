@@ -39,4 +39,14 @@ const building_blueprint_item *building_blueprint_item_at(int index);
  */
 int building_blueprint_paste_at(int x, int y);
 
+/** Rotate stamp 90° clockwise around selection center. Returns 1 if non-empty. */
+int building_blueprint_rotate_clockwise(void);
+
+/** Mirror stamp horizontally. Returns 1 if non-empty. */
+int building_blueprint_mirror_horizontal(void);
+
+/** Original selection width/height in tiles (after last copy; updates on rotate). */
+int building_blueprint_width(void);
+int building_blueprint_height(void);
+
 #endif // BUILDING_BLUEPRINT_H

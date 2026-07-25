@@ -2,15 +2,21 @@
 
 #include "assets/assets.h"
 #include "building/building.h"
+#include "building/caravanserai.h"
 #include "building/distribution.h"
 #include "building/granary.h"
-#include "building/market.h"
-#include "building/storage.h"
 #include "building/highway_station.h"
+#include "building/lighthouse.h"
+#include "building/market.h"
+#include "building/mess_hall.h"
+#include "building/storage.h"
+#include "building/tavern.h"
+#include "building/temple.h"
 #include "building/warehouse.h"
+#include "city/data_private.h"
+#include "city/resource.h"
 #include "core/config.h"
 #include "core/image.h"
-#include "city/data_private.h"
 #include "figure/combat.h"
 #include "figure/image.h"
 #include "figure/movement.h"
@@ -159,10 +165,63 @@ static int take_resource_from_warehouse(figure *f, int warehouse_id, int max_amo
     return 1;
 }
 
+static int destination_can_supply(building *dest, resource_type resource, building_type consumer_type)
+{
+    if (!dest || !building_is_active(dest) || dest->has_plague) {
+        return 0;
+    }
+    if (dest->type == BUILDING_GRANARY || dest->type == BUILDING_WAREHOUSE) {
+        building_storage_permission_states permission =
+            building_storage_get_permission_from_building_type(consumer_type);
+        if (!building_storage_get_permission(permission, dest)) {
+            return 0;
+        }
+    }
+    if (dest->type == BUILDING_GRANARY && resource_is_food(resource)) {
+        return building_granary_count_available_resource(dest, resource, 1) > 0;
+    }
+    if (dest->type == BUILDING_WAREHOUSE) {
+        if (city_resource_is_stockpiled(resource)) {
+            return 0;
+        }
+        return building_warehouse_get_available_amount(dest, resource) > 0;
+    }
+    /* Generic buildings (e.g. Venus grand temple wine store) */
+    return dest->resources[resource] > 0;
+}
+
+static int home_wants_more_of_resource(figure *f)
+{
+    building *home = building_get(f->building_id);
+    resource_type resource = f->collecting_item_id;
+    if (!resource || resource == RESOURCE_NONE) {
+        return 0;
+    }
+    int stock = home->resources[resource];
+    if (!resource_is_food(resource)) {
+        if (home->type == BUILDING_LIGHTHOUSE) {
+            return stock < 500; /* matches lighthouse MAX_TIMBER */
+        }
+        if (home->type == BUILDING_HIGHWAY_STATION) {
+            int max_stock = building_highway_station_max_stock();
+            return max_stock > 0 && stock < max_stock;
+        }
+        return 1;
+    }
+    if (home->type == BUILDING_MESS_HALL) {
+        return stock < figure_supplier_max_stocked_mess_hall_adjusted();
+    }
+    if (home->type == BUILDING_CARAVANSERAI) {
+        return stock < MAX_FOOD_STOCKED_CARAVANSERAI;
+    }
+    return stock < MAX_FOOD_STOCKED_MARKET;
+}
+
 static int change_market_supplier_destination(figure *f, int dst_building_id)
 {
-    figure_route_remove(f);
-    f->destination_building_id = dst_building_id;
+    if (!dst_building_id) {
+        return 0;
+    }
     building *b_dst = building_get(dst_building_id);
     map_point road = { 0 };
     int has_road_access = 0;
@@ -170,30 +229,43 @@ static int change_market_supplier_destination(figure *f, int dst_building_id)
         has_road_access = map_has_road_access_warehouse(b_dst->x, b_dst->y, &road);
     } else if (b_dst->type == BUILDING_GRANARY) {
         has_road_access = map_has_road_access_granary(b_dst->x, b_dst->y, &road);
+    } else if (map_has_road_access(b_dst->x, b_dst->y, b_dst->size, &road)) {
+        /* Venus grand temple / other generic pickups */
+        has_road_access = 1;
     }
     if (!has_road_access) {
         return 0;
     }
 
+    if (f->destination_building_id && f->destination_building_id != dst_building_id) {
+        f->last_destinatation_id = f->destination_building_id;
+    }
+    figure_route_remove(f);
+    f->destination_building_id = dst_building_id;
     f->action_state = FIGURE_ACTION_145_SUPPLIER_GOING_TO_STORAGE;
     f->destination_x = road.x;
     f->destination_y = road.y;
+    f->wait_ticks = 0;
     return 1;
 }
 
 static int is_better_destination(figure *f, resource_type r, resource_storage_info *info)
 {
-    building *old_dest = building_get(f->destination_building_id);
-    // if any of these are true, the new building is automatically better
-    if (!building_is_active(old_dest)) {
-        return 1;
-    } else if (old_dest->type == BUILDING_GRANARY && old_dest->resources[r] <= 0) {
-        return 1;
-    } else if (old_dest->type == BUILDING_WAREHOUSE && building_warehouse_get_amount(old_dest, r) <= 0) {
+    if (!f->destination_building_id) {
         return 1;
     }
-    // make sure the new building is less than or equal to half the distance from the old
-    // building to help prevent market ladies from "ping ponging" back and forth
+    building *home = building_get(f->building_id);
+    building *old_dest = building_get(f->destination_building_id);
+    /* Current target unusable for pickup — always switch (cartpusher pattern) */
+    if (!destination_can_supply(old_dest, r, home->type)) {
+        return 1;
+    }
+    /* Prefer not to return to a dest that just rejected us */
+    if (f->last_destinatation_id && f->destination_building_id == f->last_destinatation_id &&
+        info->building_id && info->building_id != f->destination_building_id) {
+        return 1;
+    }
+    /* New building half the distance or closer — avoid ping-pong */
     int old_dest_dist = building_dist(f->x, f->y, 1, 1, old_dest);
     if (info->min_distance <= old_dest_dist / 2) {
         return 1;
@@ -201,39 +273,155 @@ static int is_better_destination(figure *f, resource_type r, resource_storage_in
     return 0;
 }
 
-static int recalculate_market_supplier_destination(figure *f)
+static int supplier_max_search_distance(building *home)
+{
+    if (home->type == BUILDING_MARKET) {
+        return config_get(CONFIG_GP_CH_MARKET_RANGE) ? MARKET_MAX_DISTANCE : map_data.width;
+    }
+    if (home->type == BUILDING_MESS_HALL || home->type == BUILDING_HIGHWAY_STATION) {
+        return 40;
+    }
+    return map_data.width;
+}
+
+static int supplier_lookup_storage_from_home(building *home)
+{
+    switch (home->type) {
+        case BUILDING_MARKET:
+            return building_market_get_storage_destination(home);
+        case BUILDING_MESS_HALL:
+            return building_mess_hall_get_storage_destination(home);
+        case BUILDING_CARAVANSERAI:
+            return building_caravanserai_get_storage_destination(home);
+        case BUILDING_LIGHTHOUSE:
+            return building_lighthouse_get_storage_destination(home);
+        case BUILDING_HIGHWAY_STATION:
+            return building_highway_station_get_storage_destination(home);
+        case BUILDING_TAVERN:
+            return building_tavern_get_storage_destination(home);
+        default:
+            if (building_is_ceres_temple(home->type) || building_is_venus_temple(home->type)) {
+                return building_temple_get_storage_destination(home);
+            }
+            return 0;
+    }
+}
+
+static int recalculate_supplier_destination(figure *f)
 {
     int item = f->collecting_item_id;
-    building *market = building_get(f->building_id);
+    building *home = building_get(f->building_id);
     resource_storage_info info[RESOURCE_MAX] = { 0 };
 
-    // Assume we're always on the source road network
-    // Fixes walkers stopping when deciding to recalculate best destination when on different network
-    int road_network = market->road_network_id;
+    /* Stay on source road network so mid-trip recalcs don't stall on a foreign net */
+    int road_network = home->road_network_id;
+    int max_distance = supplier_max_search_distance(home);
 
-    if (!building_market_get_needed_inventory(market, info) ||
-        !building_distribution_get_resource_storages_for_figure(info, BUILDING_MARKET, road_network, f, config_get(CONFIG_GP_CH_MARKET_RANGE) ? MARKET_MAX_DISTANCE : map_data.width)) {
+    int has_needed;
+    if (home->type == BUILDING_MARKET) {
+        has_needed = building_market_get_needed_inventory(home, info);
+    } else if (home->type == BUILDING_LIGHTHOUSE) {
+        info[RESOURCE_TIMBER].needed = 1;
+        has_needed = 1;
+    } else if (home->type == BUILDING_HIGHWAY_STATION) {
+        info[RESOURCE_STONE].needed = 1;
+        info[RESOURCE_SAND].needed = 1;
+        has_needed = 1;
+    } else {
+        has_needed = building_distribution_get_handled_resources_for_building(home, info);
+    }
+
+    if (!has_needed ||
+        !building_distribution_get_resource_storages_for_figure(info, home->type, road_network, f, max_distance)) {
         return 0;
     }
 
-    if (f->building_id == info[item].building_id || f->destination_building_id == info[item].building_id) {
-        return 1;
+    /* Same dest is fine only if it can still supply the current item */
+    if (item && info[item].building_id &&
+        (f->destination_building_id == info[item].building_id || f->building_id == info[item].building_id)) {
+        if (destination_can_supply(building_get(info[item].building_id), item, home->type)) {
+            return 1;
+        }
+        /* Fall through — try another building / resource */
     }
 
-    if (info[item].building_id) {
+    if (item && info[item].building_id) {
         if (is_better_destination(f, item, &info[item])) {
+            /* Keep collecting_item_id; only change storage */
+            home->data.market.fetch_inventory_id = item;
             return change_market_supplier_destination(f, info[item].building_id);
-        } else {
+        }
+        /* Keep current dest if it is still usable */
+        if (destination_can_supply(building_get(f->destination_building_id), item, home->type)) {
             return 1;
         }
     }
-    resource_type fetch_inventory = building_market_fetch_inventory(market, info);
-    if (fetch_inventory == RESOURCE_NONE) {
+
+    resource_type fetch_inventory = RESOURCE_NONE;
+    if (home->type == BUILDING_MARKET) {
+        fetch_inventory = building_market_fetch_inventory(home, info);
+    } else if (home->type == BUILDING_LIGHTHOUSE) {
+        fetch_inventory = info[RESOURCE_TIMBER].building_id ? RESOURCE_TIMBER : RESOURCE_NONE;
+    } else if (home->type == BUILDING_HIGHWAY_STATION) {
+        fetch_inventory = building_distribution_fetch(home, info, 0, 1);
+        if (fetch_inventory == RESOURCE_NONE) {
+            fetch_inventory = building_distribution_fetch(home, info, building_highway_station_max_stock(), 0);
+        }
+    } else {
+        fetch_inventory = building_distribution_fetch(home, info, 0, 1);
+        if (fetch_inventory == RESOURCE_NONE) {
+            fetch_inventory = building_distribution_fetch(home, info, BASELINE_STOCK, 0);
+        }
+    }
+    if (fetch_inventory == RESOURCE_NONE || !info[fetch_inventory].building_id) {
         return 0;
     }
-    market->data.market.fetch_inventory_id = fetch_inventory;
+    /* Don't bounce back to a storage that just rejected us unless nothing else exists */
+    if (info[fetch_inventory].building_id == f->last_destinatation_id &&
+        !destination_can_supply(building_get(f->last_destinatation_id), fetch_inventory, home->type)) {
+        return 0;
+    }
+    home->data.market.fetch_inventory_id = fetch_inventory;
     f->collecting_item_id = fetch_inventory;
     return change_market_supplier_destination(f, info[fetch_inventory].building_id);
+}
+
+/* After a failed take (empty / maintaining / permission): find another storage or give up. */
+static int try_reroute_supplier_after_rejection(figure *f)
+{
+    if (!home_wants_more_of_resource(f)) {
+        return 0;
+    }
+    f->last_destinatation_id = f->destination_building_id;
+    f->destination_building_id = 0;
+    f->destination_x = 0;
+    f->destination_y = 0;
+    figure_route_remove(f);
+    f->wait_ticks = 0;
+
+    if (recalculate_supplier_destination(f)) {
+        return 1;
+    }
+    /* Fall back to home-centric lookup used at spawn (covers temple wine, etc.) */
+    building *home = building_get(f->building_id);
+    int dst = supplier_lookup_storage_from_home(home);
+    if (dst && dst != f->last_destinatation_id) {
+        f->collecting_item_id = home->data.market.fetch_inventory_id;
+        return change_market_supplier_destination(f, dst);
+    }
+    return 0;
+}
+
+static void supplier_return_home_empty(figure *f)
+{
+    f->action_state = FIGURE_ACTION_146_SUPPLIER_RETURNING;
+    f->collecting_item_id = RESOURCE_NONE;
+    f->loads_sold_or_carrying = 0;
+    f->destination_x = f->source_x;
+    f->destination_y = f->source_y;
+    f->destination_building_id = f->building_id;
+    f->wait_ticks = 0;
+    figure_route_remove(f);
 }
 
 void figure_supplier_action(figure *f)
@@ -262,6 +450,7 @@ void figure_supplier_action(figure *f)
                 f->previous_tile_x = f->x;
                 f->previous_tile_y = f->y;
                 int id = f->id;
+                int took = 0;
                 if (!resource_is_food(f->collecting_item_id)) {
                     int max_amount;
                     if (f->type == FIGURE_LIGHTHOUSE_SUPPLIER) {
@@ -271,44 +460,54 @@ void figure_supplier_action(figure *f)
                     } else {
                         max_amount = 2;
                     }
-                    if (!take_resource_from_warehouse(f, f->destination_building_id, max_amount)) {
-                        f->state = FIGURE_STATE_DEAD;
-                    }
+                    took = take_resource_from_warehouse(f, f->destination_building_id, max_amount);
                 } else {
-                    if (!take_food_from_granary(f, f->building_id, f->destination_building_id)) {
-                        f->state = FIGURE_STATE_DEAD;
-                    }
+                    took = take_food_from_granary(f, f->building_id, f->destination_building_id);
                 }
                 f = figure_get(id);
-                f->action_state = FIGURE_ACTION_146_SUPPLIER_RETURNING;
-                f->destination_x = f->source_x;
-                f->destination_y = f->source_y;
-            } else if (f->direction == DIR_FIGURE_REROUTE || f->direction == DIR_FIGURE_LOST) {
-                f->action_state = FIGURE_ACTION_146_SUPPLIER_RETURNING;
-                f->destination_x = f->source_x;
-                f->destination_y = f->source_y;
-                figure_route_remove(f);
-            } else if (f->type == FIGURE_MARKET_SUPPLIER && f->wait_ticks++ > FIGURE_REROUTE_DESTINATION_TICKS) {
-                f->wait_ticks = 0;
-                if (!recalculate_market_supplier_destination(f)) {
+                if (took) {
                     f->action_state = FIGURE_ACTION_146_SUPPLIER_RETURNING;
-                    f->collecting_item_id = RESOURCE_NONE;
                     f->destination_x = f->source_x;
                     f->destination_y = f->source_y;
-                    figure_route_remove(f);
+                } else if (try_reroute_supplier_after_rejection(f)) {
+                    /* New storage assigned — stay in GOING_TO_STORAGE (cartpusher pattern) */
+                } else {
+                    supplier_return_home_empty(f);
+                }
+            } else if (f->direction == DIR_FIGURE_REROUTE) {
+                /* Repath only — do not abort the trip */
+                figure_route_remove(f);
+                f->wait_ticks = 0;
+            } else if (f->direction == DIR_FIGURE_LOST) {
+                if (!try_reroute_supplier_after_rejection(f)) {
+                    supplier_return_home_empty(f);
+                }
+            } else if (f->wait_ticks++ > FIGURE_REROUTE_DESTINATION_TICKS) {
+                f->wait_ticks = 0;
+                /* Drop dead/rejected targets; best-effort improve path if still valid */
+                building *home = building_get(f->building_id);
+                building *dest = building_get(f->destination_building_id);
+                if (!destination_can_supply(dest, f->collecting_item_id, home->type)) {
+                    if (!try_reroute_supplier_after_rejection(f)) {
+                        supplier_return_home_empty(f);
+                    }
+                } else {
+                    recalculate_supplier_destination(f);
                 }
             }
             break;
         case FIGURE_ACTION_146_SUPPLIER_RETURNING:
             figure_movement_move_ticks(f, 1);
             if (f->direction == DIR_FIGURE_AT_DESTINATION || f->direction == DIR_FIGURE_LOST) {
-                if (f->direction == DIR_FIGURE_AT_DESTINATION && f->type == FIGURE_LIGHTHOUSE_SUPPLIER) {
-                    building_get(f->building_id)->resources[RESOURCE_TIMBER] += 100;
-                } else if (f->direction == DIR_FIGURE_AT_DESTINATION && f->type == FIGURE_HIGHWAY_STATION_SUPPLIER) {
-                    if (f->collecting_item_id == RESOURCE_STONE || f->collecting_item_id == RESOURCE_SAND) {
-                        int loads = f->loads_sold_or_carrying ? f->loads_sold_or_carrying : 1;
+                /* Only deposit if we actually took something (empty re-route returns carry nothing) */
+                if (f->direction == DIR_FIGURE_AT_DESTINATION && f->loads_sold_or_carrying > 0) {
+                    if (f->type == FIGURE_LIGHTHOUSE_SUPPLIER) {
+                        building_get(f->building_id)->resources[RESOURCE_TIMBER] +=
+                            100 * f->loads_sold_or_carrying;
+                    } else if (f->type == FIGURE_HIGHWAY_STATION_SUPPLIER &&
+                        (f->collecting_item_id == RESOURCE_STONE || f->collecting_item_id == RESOURCE_SAND)) {
                         building *target = building_get(f->building_id);
-                        target->resources[f->collecting_item_id] += loads * 100;
+                        target->resources[f->collecting_item_id] += f->loads_sold_or_carrying * 100;
                         building_highway_station_refresh_graphic(target);
                     }
                 }

@@ -18,6 +18,9 @@ int building_rotation_get_corner(int rot);
 void building_rotation_rotate_forward(void);
 void building_rotation_rotate_backward(void);
 void building_rotation_reset_rotation(void);
+
+/** Set rotation counters without UI (blueprint paste). */
+void building_rotation_force_set(int rotation);
 void building_rotation_setup_rotation(int variant);
 void building_rotation_remove_rotation(void);
 

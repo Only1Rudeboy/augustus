@@ -35,5 +35,8 @@ const city_overlay *city_overlay_for_storages(void);
 
 /** Houses that cannot upgrade — column height = number of missing needs. */
 const city_overlay *city_overlay_for_house_needs(void);
+const city_overlay *city_overlay_for_house_food(void);
+const city_overlay *city_overlay_for_house_bath(void);
+const city_overlay *city_overlay_for_house_entertainment_gap(void);
 
 #endif // WIGET_CITY_OVERLAY_OTHER_H

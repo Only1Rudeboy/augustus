@@ -1,5 +1,6 @@
 #include "distribution.h"
 
+#include "building/granary.h"
 #include "building/properties.h"
 #include "building/storage.h"
 #include "building/warehouse.h"
@@ -141,9 +142,13 @@ resource_type building_distribution_fetch(const building *b, const resource_stor
     return resource;
 }
 
-static void update_food_resource(resource_storage_info *info, resource_type resource, const building *b, int distance)
+static void update_food_resource(resource_storage_info *info, resource_type resource, building *b, int distance)
 {
-    if (distance < info[resource].min_distance && b->resources[resource]) {
+    /* Match goods path: only count storages that will actually give food
+     * (respects maintaining / empty-all). Prevents suppliers walking to
+     * granaries that reject takes and then dying or looping. */
+    if (distance < info[resource].min_distance &&
+        building_granary_count_available_resource(b, resource, 1) > 0) {
         info[resource].min_distance = distance;
         info[resource].building_id = b->id;
     }

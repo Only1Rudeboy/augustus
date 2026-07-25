@@ -17,6 +17,7 @@
 #include "figure/image.h"
 #include "figure/movement.h"
 #include "figure/route.h"
+/* FIGURE_REROUTE_DESTINATION_TICKS from movement.h */
 #include "figure/trader.h"
 #include "figuretype/trader.h"
 #include "game/resource.h"
@@ -428,6 +429,14 @@ void figure_docker_action(figure *f)
                 figure_route_remove(f);
             } else if (f->direction == DIR_FIGURE_LOST) {
                 f->state = FIGURE_STATE_DEAD;
+            } else if (f->wait_ticks++ > FIGURE_REROUTE_DESTINATION_TICKS) {
+                f->wait_ticks = 0;
+                if (!deliver_import_resource(f, b)) {
+                    f->action_state = FIGURE_ACTION_138_DOCKER_IMPORT_RETURNING;
+                    f->destination_x = f->source_x;
+                    f->destination_y = f->source_y;
+                    figure_route_remove(f);
+                }
             }
             if (building_get(f->destination_building_id)->state != BUILDING_STATE_IN_USE &&
                 !deliver_import_resource(f, b)) {
@@ -443,6 +452,11 @@ void figure_docker_action(figure *f)
                 figure_route_remove(f);
             } else if (f->direction == DIR_FIGURE_LOST) {
                 f->state = FIGURE_STATE_DEAD;
+            } else if (f->wait_ticks++ > FIGURE_REROUTE_DESTINATION_TICKS) {
+                f->wait_ticks = 0;
+                if (!fetch_export_resource(f, b, 0)) {
+                    set_docker_as_idle(f);
+                }
             }
             if (building_get(f->destination_building_id)->state != BUILDING_STATE_IN_USE &&
                 !fetch_export_resource(f, b, 0)) {
@@ -502,6 +516,9 @@ void figure_docker_action(figure *f)
                     f->destination_y = f->source_y;
                     f->resource_id = 0;
                     fetch_export_resource(f, b, 1);
+                } else if (deliver_import_resource(f, b)) {
+                    /* Storage rejected — re-route import to another warehouse/granary. */
+                    f->wait_ticks = 0;
                 } else {
                     f->action_state = FIGURE_ACTION_138_DOCKER_IMPORT_RETURNING;
                     f->destination_x = f->source_x;

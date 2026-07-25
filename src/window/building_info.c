@@ -1346,8 +1346,12 @@ void window_building_info_depot_toggle_condition_threshold(void)
 {
     building *b = building_get(context.building_id);
     int step = config_get(CONFIG_GP_STORAGE_INCREMENT_4) ? 4 : 8;
-    int step_max = config_get(CONFIG_GP_STORAGE_INCREMENT_4) ? 36 : 40;
-    b->data.depot.current_order.condition.threshold = (b->data.depot.current_order.condition.threshold + step) % step_max;
+    int max = 32; /* never cycle through 0 — useless threshold */
+    int t = b->data.depot.current_order.condition.threshold + step;
+    if (t > max) {
+        t = step;
+    }
+    b->data.depot.current_order.condition.threshold = t;
     window_invalidate();
 }
 
@@ -1355,8 +1359,10 @@ void window_building_info_depot_toggle_condition_threshold_reverse(void)
 {
     building *b = building_get(context.building_id);
     int step = config_get(CONFIG_GP_STORAGE_INCREMENT_4) ? 4 : 8;
-    int new_threshold = (b->data.depot.current_order.condition.threshold - step);
-    new_threshold = new_threshold < 0 ? 32 : new_threshold;
+    int new_threshold = b->data.depot.current_order.condition.threshold - step;
+    if (new_threshold < step) {
+        new_threshold = 32;
+    }
     b->data.depot.current_order.condition.threshold = new_threshold;
     window_invalidate();
 }

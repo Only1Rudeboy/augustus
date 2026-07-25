@@ -39,6 +39,8 @@ typedef struct {
     int paste_building_settings;
     int blueprint_copy;
     int blueprint_paste;
+    int blueprint_rotate;
+    int blueprint_mirror;
     int undo;
     int show_empire_map;
     int show_messages;

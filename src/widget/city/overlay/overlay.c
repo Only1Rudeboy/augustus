@@ -142,6 +142,12 @@ const city_overlay *city_overlay_get(void)
             return city_overlay_for_housing_groups_palaces();
         case OVERLAY_HOUSE_NEEDS:
             return city_overlay_for_house_needs();
+        case OVERLAY_HOUSE_FOOD:
+            return city_overlay_for_house_food();
+        case OVERLAY_HOUSE_BATH:
+            return city_overlay_for_house_bath();
+        case OVERLAY_HOUSE_ENTERTAINMENT_GAP:
+            return city_overlay_for_house_entertainment_gap();
         default:
             return &no_overlay;
     }

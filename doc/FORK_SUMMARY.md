@@ -20,9 +20,10 @@ Everything listed here is merged into **`master`**.
 | Show frame profiler | FPS + average sim / draw / frame ms |
 | Show walker debug info | Click walker: id, action, destination, path, wait, cargo |
 | Show house upgrade checklist | Checklist of missing needs for next level (default **on**) |
-| **Ctrl+C** blueprint copy | Copy buildings under cursor, or in an active drag rectangle (e.g. clear-land drag) |
-| **Ctrl+V** blueprint paste | Paste the stamp with origin at the cursor tile |
-| Overlay → *House needs* | Red columns = houses missing services/goods to evolve |
+| **Ctrl+C** blueprint copy | Copy buildings under cursor, or active drag rectangle |
+| **Ctrl+V** blueprint paste | Paste stamp (reports N/M and size) |
+| **Ctrl+R** / **Ctrl+M** | Rotate / mirror blueprint |
+| Overlay house heatmaps | Needs / Food / Bath / Entertainment gap |
 
 ---
 
@@ -44,7 +45,8 @@ Everything listed here is merged into **`master`**.
 - Partial unload: leftover loads go to another building.  
 - Full workshops: re-route instead of looping.  
 - Warehouse totals updated after every add/remove.  
-- **Warehousemen** same partial-delivery + workshop capacity checks.
+- **Warehousemen**, **depot carts**, **suppliers**, **dockers** re-route on rejection / dead dests.  
+- Mood uses **settled** tax/wage rates (blocks collection-tick cheese).
 
 ### Fairness
 - Undo after deleting houses restores the **same ages** (no free-worker exploit).  

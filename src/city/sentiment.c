@@ -5,6 +5,7 @@
 #include "city/constants.h"
 #include "city/data_private.h"
 #include "city/figures.h"
+#include "city/finance.h"
 #include "city/games.h"
 #include "city/gods.h"
 #include "city/message.h"
@@ -179,7 +180,12 @@ static int get_games_bonus(void)
 
 static int get_wage_sentiment_modifier(void)
 {
-    int wage_differential = city_data.labor.wages - city_data.labor.wages_rome;
+    /* Use the worse of live wages vs last settled wages so temporary dips still hurt mood. */
+    int wages = city_data.labor.wages;
+    if (city_data.sentiment.wages > 0 && city_data.sentiment.wages < wages) {
+        wages = city_data.sentiment.wages;
+    }
+    int wage_differential = wages - city_data.labor.wages_rome;
     return wage_differential * (wage_differential > 0 ? WAGE_POSITIVE_MODIFIER : WAGE_NEGATIVE_MODIFIER);
 }
 
@@ -271,7 +277,13 @@ void city_sentiment_update(void)
 
     int default_sentiment = difficulty_sentiment();
     int houses_calculated = 0;
-    int sentiment_contribution_taxes = get_sentiment_modifier_for_tax_rate(city_data.finance.tax_percentage);
+    /* Use higher of live tax vs last monthly settled tax to block cheese (#946). */
+    int tax_for_mood = city_data.finance.tax_percentage;
+    int settled_tax = city_finance_last_settled_tax_percentage();
+    if (settled_tax > tax_for_mood) {
+        tax_for_mood = settled_tax;
+    }
+    int sentiment_contribution_taxes = get_sentiment_modifier_for_tax_rate(tax_for_mood);
     int sentiment_contribution_no_tax = get_sentiment_modifier_for_tax_rate(0) / 2;
     int sentiment_contribution_wages = get_wage_sentiment_modifier();
     int sentiment_contribution_unemployment = get_unemployment_sentiment_modifier();

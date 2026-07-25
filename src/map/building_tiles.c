@@ -4,6 +4,7 @@
 #include "building/industry.h"
 #include "building/properties.h"
 #include "city/view.h"
+#include "core/config.h"
 #include "core/direction.h"
 #include "core/image.h"
 #include "map/aqueduct.h"
@@ -263,7 +264,10 @@ int map_building_tiles_mark_construction(int x, int y, int size, int terrain, in
     for (int dy = 0; dy < size; dy++) {
         for (int dx = 0; dx < size; dx++) {
             int grid_offset = map_grid_offset(x + dx, y + dy);
-            if (map_terrain_is(grid_offset, terrain & TERRAIN_NOT_CLEAR) || map_has_figure_at(grid_offset)) {
+            if (map_terrain_is(grid_offset, terrain & TERRAIN_NOT_CLEAR)) {
+                return 0;
+            }
+            if (map_has_figure_at(grid_offset) && !config_get(CONFIG_GP_CH_BUILD_OVER_WALKERS)) {
                 return 0;
             }
         }

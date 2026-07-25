@@ -345,6 +345,12 @@ static void set_definition_for_action(hotkey_action action, hotkey_definition *d
         case HOTKEY_BLUEPRINT_PASTE:
             def->action = &data.hotkey_state.blueprint_paste;
             break;
+        case HOTKEY_BLUEPRINT_ROTATE:
+            def->action = &data.hotkey_state.blueprint_rotate;
+            break;
+        case HOTKEY_BLUEPRINT_MIRROR:
+            def->action = &data.hotkey_state.blueprint_mirror;
+            break;
         case HOTKEY_SHOW_OVERLAY_ENTERTAINMENT:
             def->action = &data.hotkey_state.show_overlay;
             def->value = OVERLAY_ENTERTAINMENT;

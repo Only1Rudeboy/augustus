@@ -901,6 +901,7 @@ static void draw_button_from_state(resource_storage_entry entry, int x, int y, b
         }
         case BUILDING_STORAGE_STATE_NOT_ACCEPTING:
             lang_text_draw_centered(99, 8, x, y, 210, FONT_NORMAL_RED); // lang ID 8 = "Not accepting"
+            snprintf(text, sizeof(text), "-");
             break;
         case BUILDING_STORAGE_STATE_MAINTAINING:
         {
@@ -1264,36 +1265,48 @@ void window_building_draw_storage(building_info_context *c)
     lang_text_draw_multiline(is_granary(c) ? 98 : 99, 1, c->x_offset + 32, c->y_offset + y_offset + 180,
         BLOCK_SIZE * (c->width_blocks - 3), FONT_NORMAL_BLACK);
 
-    // cartpusher state
-    figure *f = figure_get(b->figure_id);
-    if (b->figure_id && f && f->state == FIGURE_STATE_ALIVE) {
-        int resource = f->resource_id;
-        image_draw(resource_get_data(resource ? resource : f->collecting_item_id)->image.icon,
-            c->x_offset + 32, c->y_offset + y_offset + 60, COLOR_MASK_NONE, SCALE_NONE);
-
-        if (resource) {
-            if (f->action_state == FIGURE_ACTION_51_WAREHOUSEMAN_DELIVERING_RESOURCE) {
-                lang_text_draw_multiline(is_granary(c) ? 98 : 99, is_granary(c) ? 9 : 16,
-                    c->x_offset + 64, c->y_offset + y_offset + 63, BLOCK_SIZE * (c->width_blocks - 5), FONT_NORMAL_BROWN);
-            } else if (f->loads_sold_or_carrying) {
-                text_draw_multiline(translation_for(TR_WINDOW_BUILDING_DISTRIBUTION_CART_PUSHER_RETURNING_WITH),
-                    c->x_offset + 64, c->y_offset + y_offset + 63,
-                    BLOCK_SIZE * (c->width_blocks - 5), 0, FONT_NORMAL_BROWN, 0);
-            } else {
-                lang_text_draw_multiline(99, 17, c->x_offset + 64, c->y_offset + y_offset + 63,
-                    BLOCK_SIZE * (c->width_blocks - 5), FONT_NORMAL_BROWN);
+    // cartpusher state — show primary + secondary cart if present
+    {
+        unsigned int fig_ids[2] = { b->figure_id, b->figure_id4 };
+        int line = 0;
+        for (int fi = 0; fi < 2; fi++) {
+            if (!fig_ids[fi]) {
+                continue;
             }
-        } else {
-            text_draw_multiline(
-                translation_for(is_granary(c)
-                    ? TR_WINDOW_BUILDING_DISTRIBUTION_GRANARY_CART_PUSHER_GETTING
-                    : TR_WINDOW_BUILDING_DISTRIBUTION_CART_PUSHER_GETTING),
-                c->x_offset + 64, c->y_offset + y_offset + 63,
-                BLOCK_SIZE * (c->width_blocks - 5), 0, FONT_NORMAL_BROWN, 0);
+            figure *f = figure_get(fig_ids[fi]);
+            if (!f || f->state != FIGURE_STATE_ALIVE) {
+                continue;
+            }
+            int y_line = y_offset + 60 + line * 18;
+            int resource = f->resource_id;
+            image_draw(resource_get_data(resource ? resource : f->collecting_item_id)->image.icon,
+                c->x_offset + 32, c->y_offset + y_line, COLOR_MASK_NONE, SCALE_NONE);
+
+            char extra[48];
+            snprintf(extra, sizeof(extra), "#%u act %u L%u", f->id, f->action_state, f->loads_sold_or_carrying);
+            text_draw((const uint8_t *) extra, c->x_offset + 64, c->y_offset + y_line + 3,
+                FONT_SMALL_PLAIN, COLOR_FONT_BLUE);
+
+            if (resource) {
+                if (f->action_state == FIGURE_ACTION_51_WAREHOUSEMAN_DELIVERING_RESOURCE) {
+                    lang_text_draw_multiline(is_granary(c) ? 98 : 99, is_granary(c) ? 9 : 16,
+                        c->x_offset + 140, c->y_offset + y_line + 3,
+                        BLOCK_SIZE * (c->width_blocks - 8), FONT_NORMAL_BROWN);
+                } else if (f->loads_sold_or_carrying) {
+                    text_draw_multiline(translation_for(TR_WINDOW_BUILDING_DISTRIBUTION_CART_PUSHER_RETURNING_WITH),
+                        c->x_offset + 140, c->y_offset + y_line + 3,
+                        BLOCK_SIZE * (c->width_blocks - 8), 0, FONT_NORMAL_BROWN, 0);
+                }
+            }
+            line++;
+            if (line >= 2) {
+                break;
+            }
         }
-    } else if (b->num_workers) {
-        lang_text_draw_multiline(99, 15, c->x_offset + 32, c->y_offset + y_offset + 63,
-            BLOCK_SIZE * (c->width_blocks - 3), FONT_NORMAL_BROWN);
+        if (line == 0 && b->num_workers) {
+            lang_text_draw_multiline(99, 15, c->x_offset + 32, c->y_offset + y_offset + 63,
+                BLOCK_SIZE * (c->width_blocks - 3), FONT_NORMAL_BROWN);
+        }
     }
 }
 

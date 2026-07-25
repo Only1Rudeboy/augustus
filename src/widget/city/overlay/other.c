@@ -1098,6 +1098,140 @@ const city_overlay *city_overlay_for_house_needs(void)
     return &overlay;
 }
 
+static int get_column_height_house_food(const building *b)
+{
+    if (!b->house_size || !b->house_population) {
+        return NO_COLUMN;
+    }
+    const model_house *model = model_get_house(b->subtype.house_level);
+    if (!model->food_types) {
+        return NO_COLUMN;
+    }
+    int stocks = 0;
+    for (resource_type r = RESOURCE_MIN_FOOD; r < RESOURCE_MAX_FOOD; r++) {
+        if (resource_is_inventory(r)) {
+            stocks += b->resources[r];
+        }
+    }
+    int pct = calc_percentage(stocks, b->house_population);
+    if (pct <= 0) {
+        return 10;
+    }
+    if (pct < 50) {
+        return 7;
+    }
+    if (pct < 100) {
+        return 4;
+    }
+    if (pct < 200) {
+        return 1;
+    }
+    return NO_COLUMN;
+}
+
+static int get_column_height_house_bath(const building *b)
+{
+    if (!b->house_size || !b->house_population) {
+        return NO_COLUMN;
+    }
+    const model_house *next = model_get_house(
+        b->subtype.house_level < HOUSE_LUXURY_PALACE ? b->subtype.house_level + 1 : b->subtype.house_level);
+    if (next->bathhouse <= 0) {
+        return NO_COLUMN;
+    }
+    if (b->data.house.bathhouse >= next->bathhouse) {
+        return NO_COLUMN;
+    }
+    return 8;
+}
+
+static int get_column_height_house_entertainment_gap(const building *b)
+{
+    if (!b->house_size || !b->house_population) {
+        return NO_COLUMN;
+    }
+    if (b->subtype.house_level >= HOUSE_LUXURY_PALACE) {
+        return NO_COLUMN;
+    }
+    const model_house *next = model_get_house(b->subtype.house_level + 1);
+    int need = next->entertainment;
+    int have = b->data.house.entertainment;
+    if (have >= need) {
+        return NO_COLUMN;
+    }
+    int gap = need - have;
+    return calc_bound(gap / 5 + 1, 1, 10);
+}
+
+static int get_tooltip_house_food(tooltip_context *c, int grid_offset)
+{
+    building *b = building_get(map_building_at(grid_offset));
+    if (!b || !b->house_population) {
+        return 0;
+    }
+    c->translation_key = TR_TOOLTIP_OVERLAY_HOUSE_FOOD;
+    return 0;
+}
+
+static int get_tooltip_house_bath(tooltip_context *c, int grid_offset)
+{
+    building *b = building_get(map_building_at(grid_offset));
+    if (!b || !b->house_population) {
+        return 0;
+    }
+    c->translation_key = TR_TOOLTIP_OVERLAY_HOUSE_BATH;
+    return 0;
+}
+
+static int get_tooltip_house_entertainment_gap(tooltip_context *c, int grid_offset)
+{
+    building *b = building_get(map_building_at(grid_offset));
+    if (!b || !b->house_population) {
+        return 0;
+    }
+    c->translation_key = TR_TOOLTIP_OVERLAY_HOUSE_ENTERTAINMENT_GAP;
+    return 0;
+}
+
+const city_overlay *city_overlay_for_house_food(void)
+{
+    static city_overlay overlay = {
+        .type = OVERLAY_HOUSE_FOOD,
+        .column_type = COLUMN_COLOR_RED_TO_GREEN,
+        .show_building = show_building_house_needs,
+        .show_figure = show_figure_none,
+        .get_column_height = get_column_height_house_food,
+        .get_tooltip = get_tooltip_house_food
+    };
+    return &overlay;
+}
+
+const city_overlay *city_overlay_for_house_bath(void)
+{
+    static city_overlay overlay = {
+        .type = OVERLAY_HOUSE_BATH,
+        .column_type = COLUMN_COLOR_RED,
+        .show_building = show_building_house_needs,
+        .show_figure = show_figure_none,
+        .get_column_height = get_column_height_house_bath,
+        .get_tooltip = get_tooltip_house_bath
+    };
+    return &overlay;
+}
+
+const city_overlay *city_overlay_for_house_entertainment_gap(void)
+{
+    static city_overlay overlay = {
+        .type = OVERLAY_HOUSE_ENTERTAINMENT_GAP,
+        .column_type = COLUMN_COLOR_RED,
+        .show_building = show_building_house_needs,
+        .show_figure = show_figure_none,
+        .get_column_height = get_column_height_house_entertainment_gap,
+        .get_tooltip = get_tooltip_house_entertainment_gap
+    };
+    return &overlay;
+}
+
 static void draw_storage_ids(int x, int y, float scale, int grid_offset)
 {
     if (!map_terrain_is(grid_offset, TERRAIN_BUILDING)) {
