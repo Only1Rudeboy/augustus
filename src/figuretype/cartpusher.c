@@ -441,6 +441,21 @@ void figure_cartpusher_action(figure *f)
                 reroute_cartpusher(f);
             } else if (f->direction == DIR_FIGURE_LOST) {
                 f->state = FIGURE_STATE_DEAD;
+            } else if (f->wait_ticks++ > FIGURE_REROUTE_DESTINATION_TICKS) {
+                building *workshop = building_get(f->destination_building_id);
+                if (workshop->state != BUILDING_STATE_IN_USE ||
+                    workshop->resources[f->resource_id] >= 2 * RESOURCE_ONE_LOAD) {
+                    f->destination_building_id = 0;
+                    f->action_state = FIGURE_ACTION_20_CARTPUSHER_INITIAL;
+                    f->wait_ticks = 0;
+                    determine_cartpusher_destination(f, b, road_network_id);
+                } else {
+                    f->wait_ticks = 0;
+                }
+            }
+            if (building_get(f->destination_building_id)->state != BUILDING_STATE_IN_USE) {
+                f->action_state = FIGURE_ACTION_20_CARTPUSHER_INITIAL;
+                f->wait_ticks = 0;
             }
             break;
         case FIGURE_ACTION_246_CARTPUSHER_DELIVERING_TO_MONUMENT:
@@ -468,11 +483,13 @@ void figure_cartpusher_action(figure *f)
                 int delivered = building_warehouse_try_add_resource(
                     building_get(f->destination_building_id), f->resource_id, f->loads_sold_or_carrying, 1);
                 if (delivered) {
-                    f->loads_sold_or_carrying -= delivered; //sure hope it equals 0
+                    f->loads_sold_or_carrying -= delivered;
                     city_health_dispatch_sickness(f);
+                }
+                if (f->loads_sold_or_carrying <= 0) {
                     cartpusher_return_to_source(f);
                 } else {
-                    // Destination rejected goods (orders/full). Clear dest and re-find (#951).
+                    /* Partial delivery or rejection: keep remaining cargo and re-find a sink. */
                     figure_route_remove(f);
                     f->destination_building_id = 0;
                     f->destination_x = 0;
@@ -490,15 +507,12 @@ void figure_cartpusher_action(figure *f)
                 int delivered = building_granary_try_add_resource(building_get(f->destination_building_id),
                     f->resource_id, f->loads_sold_or_carrying, 1, 1);
                 if (delivered) {
-                    f->loads_sold_or_carrying -= delivered; //sure hope it equals 0
+                    f->loads_sold_or_carrying -= delivered;
                     city_health_dispatch_sickness(f);
+                }
+                if (!f->loads_sold_or_carrying) {
                     cartpusher_return_to_source(f);
                 } else {
-                    if (!f->loads_sold_or_carrying) {
-                        cartpusher_return_to_source(f);
-                        break;
-                    }
-                    // Destination rejected goods. Clear dest and re-find food sink (#951).
                     figure_route_remove(f);
                     f->destination_building_id = 0;
                     f->destination_x = 0;
@@ -513,8 +527,30 @@ void figure_cartpusher_action(figure *f)
         case FIGURE_ACTION_26_CARTPUSHER_AT_WORKSHOP:
             f->wait_ticks++;
             if (f->wait_ticks > 5) {
-                building_workshop_add_raw_material(building_get(f->destination_building_id), f->resource_id);
-                cartpusher_return_to_source(f);
+                building *workshop = building_get(f->destination_building_id);
+                if (workshop->state == BUILDING_STATE_IN_USE &&
+                    workshop->resources[f->resource_id] < 2 * RESOURCE_ONE_LOAD) {
+                    building_workshop_add_raw_material(workshop, f->resource_id);
+                    if (f->loads_sold_or_carrying > 0) {
+                        f->loads_sold_or_carrying--;
+                    }
+                    if (f->loads_sold_or_carrying <= 0) {
+                        cartpusher_return_to_source(f);
+                    } else {
+                        /* Workshop full after partial drop — re-find. */
+                        figure_route_remove(f);
+                        f->destination_building_id = 0;
+                        f->action_state = FIGURE_ACTION_20_CARTPUSHER_INITIAL;
+                        f->wait_ticks = 0;
+                        determine_cartpusher_destination(f, b, road_network_id);
+                    }
+                } else {
+                    figure_route_remove(f);
+                    f->destination_building_id = 0;
+                    f->action_state = FIGURE_ACTION_20_CARTPUSHER_INITIAL;
+                    f->wait_ticks = 0;
+                    determine_cartpusher_destination(f, b, road_network_id);
+                }
             }
             f->image_offset = 0;
             break;

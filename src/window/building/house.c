@@ -1,13 +1,16 @@
 #include "house.h"
 
 #include "building/building.h"
+#include "building/house_evolution.h"
 #include "building/properties.h"
 #include "city/constants.h"
 #include "city/finance.h"
 #include "city/sentiment.h"
 #include "core/calc.h"
+#include "core/config.h"
 #include "core/string.h"
 #include "game/resource.h"
+#include "graphics/color.h"
 #include "graphics/image.h"
 #include "graphics/lang_text.h"
 #include "graphics/panel.h"
@@ -16,6 +19,9 @@
 #include "sound/speech.h"
 #include "translation/translation.h"
 #include "window/building/figures.h"
+
+#include <stdio.h>
+#include <string.h>
 
 static void draw_vacant_lot(building_info_context *c)
 {
@@ -250,6 +256,94 @@ void window_building_draw_house(building_info_context *c)
     } else {
         lang_text_draw_multiline(127, 40 + b->data.house.evolve_text_id,
             c->x_offset + 32, c->y_offset + 56, BLOCK_SIZE * (c->width_blocks - 3), FONT_NORMAL_BLACK);
+    }
+
+    if (config_get(CONFIG_UI_HOUSE_DIAGNOSE) && !b->has_plague) {
+        house_upgrade_diagnose d;
+        building_house_diagnose_upgrade(b, &d);
+        if (!d.is_max_level && !d.can_evolve) {
+            char buf[160];
+            buf[0] = 0;
+            int n = 0;
+            /* Compact checklist of the first few blockers for the next level. */
+            if (d.missing_desirability && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                    n ? " · Des %d/%d" : "Des %d/%d", d.desirability_current, d.desirability_needed);
+                n++;
+            }
+            if (d.missing_water && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), n ? " · Water" : "Water");
+                n++;
+            }
+            if (d.missing_entertainment && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                    n ? " · Ent %d/%d" : "Ent %d/%d", d.entertainment_have, d.entertainment_need);
+                n++;
+            }
+            if (d.missing_education && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                    n ? " · Edu %d/%d" : "Edu %d/%d", d.education_have, d.education_need);
+                n++;
+            }
+            if (d.missing_religion && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                    n ? " · Gods %d/%d" : "Gods %d/%d", d.gods_have, d.gods_need);
+                n++;
+            }
+            if (d.missing_barber && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), n ? " · Barber" : "Barber");
+                n++;
+            }
+            if (d.missing_bathhouse && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), n ? " · Bath" : "Bath");
+                n++;
+            }
+            if (d.missing_health && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                    n ? " · Health %d/%d" : "Health %d/%d", d.health_have, d.health_need);
+                n++;
+            }
+            if (d.missing_food && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                    n ? " · Food %d/%d" : "Food %d/%d", d.food_have, d.food_need);
+                n++;
+            }
+            if (d.missing_pottery && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                    n ? " · Pottery %d/%d" : "Pottery %d/%d", d.pottery_have, d.pottery_need);
+                n++;
+            }
+            if (d.missing_oil && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                    n ? " · Oil %d/%d" : "Oil %d/%d", d.oil_have, d.oil_need);
+                n++;
+            }
+            if (d.missing_furniture && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                    n ? " · Furn %d/%d" : "Furn %d/%d", d.furniture_have, d.furniture_need);
+                n++;
+            }
+            if (d.missing_wine && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+                    n ? " · Wine %d/%d" : "Wine %d/%d", d.wine_have, d.wine_need);
+                n++;
+            }
+            if (d.missing_second_wine && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), n ? " · 2nd wine" : "2nd wine");
+                n++;
+            }
+            if (d.missing_space && n < 5) {
+                snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), n ? " · No space" : "No space");
+                n++;
+            }
+            if (n > 0) {
+                text_draw((const uint8_t *) buf, c->x_offset + 32, c->y_offset + 108,
+                    FONT_SMALL_PLAIN, COLOR_FONT_RED);
+            }
+        } else if (d.can_evolve) {
+            text_draw(string_from_ascii("Ready to evolve"),
+                c->x_offset + 32, c->y_offset + 108, FONT_SMALL_PLAIN, COLOR_FONT_GREEN);
+        }
     }
 }
 

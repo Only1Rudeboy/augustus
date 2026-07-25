@@ -229,6 +229,7 @@ int building_warehouse_try_add_resource(building *b, int resource, int quantity,
 
     if (added) {
         tutorial_on_add_to_warehouse();
+        building_warehouse_recount_resources(b);
     }
     return added;
 }
@@ -286,6 +287,9 @@ int building_warehouse_try_remove_resource(building *warehouse, int resource, in
             space->subtype.warehouse_resource_id = RESOURCE_NONE;
         }
         building_warehouse_space_set_image(space, resource);
+    }
+    if (removed_amount) {
+        building_warehouse_recount_resources(warehouse);
     }
     return removed_amount;
 }
@@ -605,7 +609,8 @@ int building_warehouse_accepts_storage(building *warehouse, int resource, int *u
         return 0;
     }
     int pct_workers = calc_percentage(warehouse->num_workers, model_get_building(warehouse->type)->laborers);
-    if (pct_workers < 100) {
+    int min_staff = config_get(CONFIG_GP_CH_STORAGE_ACCEPTS_WHEN_STAFFED) ? 50 : 100;
+    if (pct_workers < min_staff) {
         if (understaffed) {
             *understaffed += 1;
         }

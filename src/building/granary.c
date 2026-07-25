@@ -410,7 +410,8 @@ int building_granary_accepts_storage(building *b, int resource, int *understaffe
         return 0;
     }
     int pct_workers = calc_percentage(b->num_workers, model_get_building(b->type)->laborers);
-    if (pct_workers < 100) {
+    int min_staff = config_get(CONFIG_GP_CH_STORAGE_ACCEPTS_WHEN_STAFFED) ? 50 : 100;
+    if (pct_workers < min_staff) {
         if (understaffed) {
             *understaffed += 1;
         }

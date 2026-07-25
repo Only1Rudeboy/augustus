@@ -11,8 +11,10 @@
 #include "core/file.h"
 #include "core/string.h"
 #include "figure/figure.h"
+#include "figure/action.h"
 #include "game/resource.h"
 #include "graphics/button.h"
+#include "graphics/color.h"
 #include "graphics/generic_button.h"
 #include "graphics/image.h"
 #include "graphics/lang_text.h"
@@ -88,6 +90,32 @@ static void draw_farm(building_info_context *c, int help_id, const char *sound_f
             TR_BUILDING_WINDOW_INDUSTRY_LOW_EFFICIENCY_RAW_MATERIALS);
     } else if (c->worker_percentage >= 100) {
         window_building_draw_description_at(c, 96, group_id, 6);
+    }
+
+    /* Logistics line: where the cart is going / why it waits */
+    if (b->figure_id) {
+        figure *cart = figure_get(b->figure_id);
+        if (cart && cart->state == FIGURE_STATE_ALIVE) {
+            char cart_line[128];
+            building *dest = building_get(cart->destination_building_id);
+            if (cart->action_state == FIGURE_ACTION_20_CARTPUSHER_INITIAL ||
+                cart->action_state == FIGURE_ACTION_245_CARTPUSHER_WAITING_FOR_DESTINATION) {
+                if (cart->min_max_seen == 2) {
+                    snprintf(cart_line, sizeof(cart_line), "Cart waiting: storages understaffed");
+                } else if (cart->min_max_seen == 1) {
+                    snprintf(cart_line, sizeof(cart_line), "Cart waiting: no accepting storage");
+                } else {
+                    snprintf(cart_line, sizeof(cart_line), "Cart seeking destination");
+                }
+            } else if (dest && dest->id) {
+                snprintf(cart_line, sizeof(cart_line), "Cart -> building %u loads %u",
+                    dest->id, cart->loads_sold_or_carrying);
+            } else {
+                snprintf(cart_line, sizeof(cart_line), "Cart active (act %u)", cart->action_state);
+            }
+            text_draw((const uint8_t *) cart_line, c->x_offset + 32, c->y_offset + 94,
+                FONT_SMALL_PLAIN, COLOR_FONT_BLUE);
+        }
     }
 
     inner_panel_draw(c->x_offset + 16, c->y_offset + 162, c->width_blocks - 2, 4);

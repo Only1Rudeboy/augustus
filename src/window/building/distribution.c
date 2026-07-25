@@ -18,8 +18,11 @@
 #include "city/military.h"
 #include "city/resource.h"
 #include "city/trade_policy.h"
+#include "core/calc.h"
 #include "core/lang.h"
 #include "core/string.h"
+#include "building/properties.h"
+#include "graphics/color.h"
 #include "empire/city.h"
 #include "empire/object.h"
 #include "empire/trade_route.h"
@@ -1226,9 +1229,29 @@ void window_building_draw_storage(building_info_context *c)
                 c->x_offset + 16 + width, c->y_offset + 40, FONT_NORMAL_BLACK);
 
             width = lang_text_draw(98, 3, c->x_offset + 220, c->y_offset + 40, FONT_NORMAL_BLACK);
-            int max = is_granary(c) ? b->resources[RESOURCE_NONE] : 32 - total_stored;
+            int max = is_granary(c) ? b->resources[RESOURCE_NONE] :
+                (b->resources[RESOURCE_NONE] > 0 ? b->resources[RESOURCE_NONE] : 32 - total_stored);
             lang_text_draw_amount(CUSTOM_TRANSLATION, TR_BUILDING_INFO_CARTLOAD, max,
                 c->x_offset + 220 + width, c->y_offset + 40, FONT_NORMAL_BLACK);
+        }
+        /* Logistics status: road / staffing / empty-all */
+        {
+            char status[96];
+            status[0] = 0;
+            int pct_workers = b->num_workers > 0 ?
+                calc_percentage(b->num_workers, model_get_building(b->type)->laborers) : 0;
+            if (!c->has_road_access) {
+                snprintf(status, sizeof(status), "No road access");
+            } else if (building_storage_get_empty_all(b->id)) {
+                snprintf(status, sizeof(status), "Emptying all");
+            } else if (pct_workers < 100) {
+                snprintf(status, sizeof(status), "Workers %d%% — may refuse deliveries", pct_workers);
+            }
+            if (status[0]) {
+                text_draw((const uint8_t *) status, c->x_offset + 32, c->y_offset + y + 6,
+                    FONT_SMALL_PLAIN, COLOR_FONT_ORANGE);
+                y += 14;
+            }
         }
     }
     y += 26; // TODO: simplify these values later, hardcoding and multiple vars are not necessary

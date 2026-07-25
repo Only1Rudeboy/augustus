@@ -3,22 +3,39 @@
 > **This repository** is a fork of [Keriew/augustus](https://github.com/Keriew/augustus) with extra quality-of-life and bug fixes.  
 > Upstream Augustus is the full Caesar III remake with gameplay options. We keep that base and improve it step by step.
 
-## What’s new in this fork (Milestone A)
+## What’s new in this fork
 
-Short version — tools for developers and three important fixes:
+Quality-of-life, bug fixes, and tools on top of upstream Augustus.  
+Branches: `milestone-a-foundation` · `milestone-bc-quality`
 
-### Dev tools
+### Milestone A — Tools & critical fixes
 | Feature | How to use |
 |--------|------------|
-| **Frame profiler** | Options → UI → *Show frame profiler*. Shows sim / draw / frame time in ms (next to FPS). |
-| **Walker debug** | Options → UI → *Show walker debug info*. Click a walker to see id, action, destination, path progress, wait ticks. |
+| **Frame profiler** | Options → UI → *Show frame profiler* (sim / draw / frame ms) |
+| **Walker debug** | Options → UI → *Show walker debug info* — click a walker |
 
-### Bug fixes
-- **Display scale cursor** — With scale above 100%, clicks now match where the hardware cursor is (SDL2).
-- **House delete + Undo exploit** — Undoing house deletion no longer re-rolls ages / free workers.
-- **Stuck cart pushers** — If a warehouse stops accepting goods, the cart pusher finds a new destination instead of looping forever.
+- **Display scale cursor** — clicks match the hardware cursor (SDL2)
+- **House delete + Undo** — no free workers from age re-rolls
+- **Stuck cart pushers** — re-find destination when storage rejects goods
 
-Details: [doc/MILESTONE_A.md](doc/MILESTONE_A.md) · Branch: `milestone-a-foundation`
+### Milestone B & C — Feel + logistics
+| Feature | How to use |
+|--------|------------|
+| **House upgrade checklist** | Options → UI → *Show house upgrade checklist* (default **on**). Red line under the evolve text: Des / Water / Ent / Food / goods… |
+| **Storage status** | Warehouse/granary panel shows free space correctly + staffing / emptying hints |
+| **Industry cart line** | Farms/workshops show where the cart is going or why it waits |
+
+**Bug fixes**
+- Partial warehouse/granary delivery no longer drops remaining cargo
+- Workshops re-checked when full; cart re-routes mid-trip
+- Warehouse resource counters updated after add/remove
+- House panel no longer shows garbage evolve text until reopened
+
+**Optional gameplay** (off by default)
+- Warehouses/granaries accept goods at **50%+** workers
+- Build on tiles while walkers stand there
+
+Docs: [doc/MILESTONE_A.md](doc/MILESTONE_A.md) · [doc/MILESTONE_BC.md](doc/MILESTONE_BC.md)
 
 ---
 

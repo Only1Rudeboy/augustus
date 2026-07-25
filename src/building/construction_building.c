@@ -596,9 +596,12 @@ int building_construction_place_building(building_type type, int x, int y, int e
     if (type == BUILDING_WAREHOUSE) {
         size = 3;
     }
-    // Do not check for a figure when build a roadblock of single tile size
-    // TODO: do not check for figures on tiles that are citizen passable in general
+    // Do not check for a figure when build a roadblock of single tile size,
+    // or (optionally) on tiles walkers already share — roads / open land.
     int check_figure = type == BUILDING_ROADBLOCK && size == 1 ? 0 : 1;
+    if (check_figure && config_get(CONFIG_GP_CH_BUILD_OVER_WALKERS)) {
+        check_figure = 0;
+    }
     int building_orientation = 0;
     if (type == BUILDING_GATEHOUSE || type == BUILDING_WAREHOUSE) {
         //check if there's a preset orientation from old building

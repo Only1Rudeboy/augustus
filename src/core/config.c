@@ -139,6 +139,9 @@ static const char *ini_keys[] = {
     [CONFIG_UI_AUTO_CYCLE_GARDENS] = "ui_auto_cycle_gardens",
     [CONFIG_UI_DISPLAY_PROFILER] = "ui_display_profiler",
     [CONFIG_UI_WALKER_DEBUG] = "ui_walker_debug",
+    [CONFIG_UI_HOUSE_DIAGNOSE] = "ui_house_diagnose",
+    [CONFIG_GP_CH_STORAGE_ACCEPTS_WHEN_STAFFED] = "gameplay_change_storage_accepts_when_staffed",
+    [CONFIG_GP_CH_BUILD_OVER_WALKERS] = "gameplay_change_build_over_walkers",
 };
 
 static const char *ini_string_keys[] = {
@@ -215,7 +218,10 @@ static int default_values[CONFIG_MAX_ENTRIES] = {
     [CONFIG_UI_WT_WEATHER_DURATION] = 1,
     [CONFIG_UI_CLIMATE_GRID_COLORS] = 1,
     [CONFIG_UI_DISPLAY_PROFILER] = 0,
-    [CONFIG_UI_WALKER_DEBUG] = 0
+    [CONFIG_UI_WALKER_DEBUG] = 0,
+    [CONFIG_UI_HOUSE_DIAGNOSE] = 1,
+    [CONFIG_GP_CH_STORAGE_ACCEPTS_WHEN_STAFFED] = 0,
+    [CONFIG_GP_CH_BUILD_OVER_WALKERS] = 0
 };
 
 static const char default_string_values[CONFIG_STRING_MAX_ENTRIES][CONFIG_STRING_VALUE_MAX] = { 0 };

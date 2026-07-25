@@ -17,6 +17,8 @@
 #include "map/terrain.h"
 #include "map/tiles.h"
 
+#include <string.h>
+
 #define DEVOLVE_DELAY 2
 #define DEVOLVE_DELAY_WITH_VENUS 20
 
@@ -47,7 +49,10 @@ static int check_evolve_desirability(building *house, int bonus)
     } else {
         status = NONE;
     }
-    house->data.house.evolve_text_id = status; // BUG? -1 in an unsigned char?
+    /* Do not write status into evolve_text_id: that field stores lang text ids
+     * set by building_house_determine_evolve_text when the panel opens.
+     * Writing -1/0/1 here corrupted the house panel until it was reopened. */
+    (void) house;
     return status;
 }
 
@@ -923,6 +928,135 @@ void building_house_determine_evolve_text(building *house, int worst_desirabilit
         // house would like to evolve but can't
         house->data.house.evolve_text_id = 64;
     }
+}
+
+void building_house_diagnose_upgrade(const building *house, house_upgrade_diagnose *out)
+{
+    if (!out || !house) {
+        return;
+    }
+    memset(out, 0, sizeof(*out));
+    if (!house->house_size || house->house_population <= 0) {
+        return;
+    }
+    if (house->has_plague) {
+        out->has_plague = 1;
+        return;
+    }
+
+    int bonus = 0;
+    if (building_monument_pantheon_module_is_active(PANTHEON_MODULE_2_HOUSING_EVOLUTION) &&
+        house->house_pantheon_access) {
+        bonus = 1;
+    }
+
+    int level = house->subtype.house_level;
+    level = calc_bound(level - bonus, HOUSE_MIN, HOUSE_MAX);
+    if (level >= HOUSE_LUXURY_PALACE) {
+        out->is_max_level = 1;
+        out->can_evolve = 0;
+        return;
+    }
+
+    const model_house *current = model_get_house(level);
+    const model_house *next = model_get_house(level + 1);
+
+    out->desirability_current = house->desirability;
+    out->desirability_needed = current->evolve_desirability;
+    if (house->desirability < current->evolve_desirability) {
+        out->missing_desirability = 1;
+    }
+
+    int water = next->water;
+    if (water >= 1 && !house->has_water_access) {
+        if (water == 1 && !house->has_well_access) {
+            out->missing_water = 1;
+        } else if (water >= 2 && level + 1 > HOUSE_SMALL_CASA) {
+            out->missing_water = 1;
+        } else if (water == 1 && house->has_well_access &&
+            level + 1 > HOUSE_LARGE_SHACK && !house->has_latrines_access) {
+            out->missing_water = 1;
+        }
+    }
+
+    out->entertainment_have = house->data.house.entertainment;
+    out->entertainment_need = next->entertainment;
+    if (house->data.house.entertainment < next->entertainment) {
+        out->missing_entertainment = 1;
+    }
+
+    out->education_have = house->data.house.education;
+    out->education_need = next->education;
+    if (house->data.house.education < next->education) {
+        out->missing_education = 1;
+    }
+
+    int religion = next->religion > 3 ? 3 : next->religion;
+    out->gods_have = house->data.house.num_gods;
+    out->gods_need = religion;
+    if (house->data.house.num_gods < religion) {
+        out->missing_religion = 1;
+    }
+
+    if (house->data.house.barber < next->barber) {
+        out->missing_barber = 1;
+    }
+    if (house->data.house.bathhouse < next->bathhouse) {
+        out->missing_bathhouse = 1;
+    }
+
+    out->health_have = house->data.house.health;
+    out->health_need = next->health;
+    if (house->data.house.health < next->health) {
+        out->missing_health = 1;
+    }
+
+    int food_have = 0;
+    for (resource_type r = RESOURCE_MIN_FOOD; r < RESOURCE_MAX_FOOD; r++) {
+        if (house->resources[r] && resource_is_inventory(r)) {
+            food_have++;
+        }
+    }
+    out->food_have = food_have;
+    out->food_need = next->food_types;
+    if (food_have < next->food_types) {
+        out->missing_food = 1;
+    }
+
+    out->pottery_have = house->resources[RESOURCE_POTTERY];
+    out->pottery_need = next->pottery;
+    if (house->resources[RESOURCE_POTTERY] < next->pottery) {
+        out->missing_pottery = 1;
+    }
+    out->oil_have = house->resources[RESOURCE_OIL];
+    out->oil_need = next->oil;
+    if (house->resources[RESOURCE_OIL] < next->oil) {
+        out->missing_oil = 1;
+    }
+    out->furniture_have = house->resources[RESOURCE_FURNITURE];
+    out->furniture_need = next->furniture;
+    if (house->resources[RESOURCE_FURNITURE] < next->furniture) {
+        out->missing_furniture = 1;
+    }
+    out->wine_have = house->resources[RESOURCE_WINE];
+    out->wine_need = next->wine;
+    if (house->resources[RESOURCE_WINE] < next->wine) {
+        out->missing_wine = 1;
+    }
+    if (next->wine > 1 && !city_resource_multiple_wine_available()) {
+        out->missing_second_wine = 1;
+    }
+
+    if (house->data.house.no_space_to_expand) {
+        out->missing_space = 1;
+    }
+
+    out->can_evolve = !(out->missing_desirability || out->missing_water ||
+        out->missing_entertainment || out->missing_education || out->missing_religion ||
+        out->missing_barber || out->missing_bathhouse || out->missing_health ||
+        out->missing_food || out->missing_pottery || out->missing_oil ||
+        out->missing_furniture || out->missing_wine || out->missing_second_wine ||
+        out->missing_space);
 }
 
 static building_type get_building_type_at_tile(const building *house, int x, int y)
